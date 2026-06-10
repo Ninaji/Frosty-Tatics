@@ -4,7 +4,13 @@ Jogo tático 3D isométrico por turnos no browser, no espírito de **Final Fanta
 
 ![tech](https://img.shields.io/badge/Three.js-3D-blue) ![lang](https://img.shields.io/badge/PT--BR-100%25-green)
 
-## 🎮 Jogar
+## ▶️ JOGUE AGORA (no browser, grátis)
+
+**https://ninaji.github.io/Frosty-Tatics/**
+
+Cada push na branch `main` valida os dados, simula a campanha e publica automaticamente via GitHub Actions.
+
+## 🎮 Rodar localmente
 
 ```bash
 npm install
