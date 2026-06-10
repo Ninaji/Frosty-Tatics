@@ -1,0 +1,168 @@
+// Validação de integridade dos dados do jogo.
+// Roda em Node: npm run validate
+
+import { ENEMIES, ENEMY_BY_ID } from '../src/data/enemies.js';
+import { ADJECTIVES } from '../src/data/adjectives.js';
+import { CONDITIONS } from '../src/core/conditions.js';
+import { DAMAGE_TYPES } from '../src/core/damage.js';
+import { parseDice } from '../src/core/dice.js';
+import { FROSTY_ABILITIES, FROSTY_PASSIVES } from '../src/data/abilities.js';
+import { ZONES } from '../src/data/campaign.js';
+import { POTIONS, UPGRADES } from '../src/data/items.js';
+
+const KNOWN_EFFECTS = new Set([
+  'stat', 'extraDamage', 'riderCondition', 'auraDamage', 'auraSlow', 'regen',
+  'lifesteal', 'thorns', 'onDeathExplode', 'onDeathSplit', 'onDeathCurse',
+  'onDeathHealAllies', 'resistance', 'immunity', 'vulnerability', 'conditionImmunity',
+  'critRange', 'multiattack', 'rerollOnes', 'dodge', 'flying', 'phasing',
+  'initiativeBonus', 'accuracy', 'saveBonus', 'behavior', 'rageBelow',
+  'executioner', 'firstBlood', 'blinkOnHit', 'elementConvert', 'killHeal',
+  'packTactics', 'sturdy', 'reach', 'slippery', 'evasive', 'loneWolf', 'startWounded',
+]);
+
+const KNOWN_BEHAVIORS = new Set(['agressivo', 'atirador', 'covarde', 'guardiao', 'preguicoso', 'emboscador']);
+
+let errors = 0;
+const err = (msg) => { errors++; console.error('  ❌', msg); };
+const ok = (msg) => console.log('  ✅', msg);
+
+console.log('\n=== VALIDAÇÃO DE DADOS — Frosty Tactics ===\n');
+
+// ---------- adjetivos ----------
+console.log(`Adjetivos: ${ADJECTIVES.length}`);
+if (ADJECTIVES.length >= 200) ok(`${ADJECTIVES.length} adjetivos (meta: ≥200)`);
+else err(`apenas ${ADJECTIVES.length} adjetivos (meta: ≥200)`);
+
+const adjIds = new Set();
+const adjNames = new Set();
+for (const a of ADJECTIVES) {
+  if (adjIds.has(a.id)) err(`adjetivo id duplicado: ${a.id}`);
+  adjIds.add(a.id);
+  if (adjNames.has(a.m)) err(`adjetivo nome duplicado: ${a.m}`);
+  adjNames.add(a.m);
+  if (!a.f) err(`adjetivo sem forma feminina: ${a.id}`);
+  if (![1, 2, 3].includes(a.tier)) err(`adjetivo tier inválido: ${a.id}`);
+  if (!a.desc) err(`adjetivo sem descrição: ${a.id}`);
+  let hasMechanical = false;
+  for (const e of a.effects) {
+    if (!KNOWN_EFFECTS.has(e.type)) err(`adjetivo ${a.id}: efeito desconhecido '${e.type}'`);
+    if (e.type !== 'stat' || Object.keys(e).some((k) => k !== 'type' && k !== 'xpMult')) hasMechanical = true;
+    validateEffect(a.id, e);
+  }
+  if (!hasMechanical) err(`adjetivo ${a.id} não tem efeito mecânico além de xp`);
+}
+ok('IDs e nomes de adjetivos únicos, todos com efeito mecânico');
+
+function validateEffect(owner, e) {
+  try {
+    if (e.dice) parseDice(e.dice);
+    if (e.type === 'extraDamage' && !DAMAGE_TYPES.includes(e.element)) err(`${owner}: elemento inválido ${e.element}`);
+    if (e.type === 'riderCondition' && !CONDITIONS[e.condition]) err(`${owner}: condição inválida ${e.condition}`);
+    if (e.type === 'onDeathCurse' && !CONDITIONS[e.condition]) err(`${owner}: condição inválida ${e.condition}`);
+    if (e.type === 'conditionImmunity') for (const c of e.conditions) if (!CONDITIONS[c]) err(`${owner}: condição inválida ${c}`);
+    if (['resistance', 'immunity', 'vulnerability'].includes(e.type)) {
+      for (const t of e.types) if (!DAMAGE_TYPES.includes(t)) err(`${owner}: tipo de dano inválido ${t}`);
+    }
+    if (e.type === 'behavior' && !KNOWN_BEHAVIORS.has(e.kind)) err(`${owner}: comportamento inválido ${e.kind}`);
+  } catch (ex) {
+    err(`${owner}: ${ex.message}`);
+  }
+}
+
+// ---------- inimigos ----------
+console.log(`\nInimigos: ${ENEMIES.length}`);
+if (ENEMIES.length >= 100) ok(`${ENEMIES.length} inimigos base (meta: ≥100)`);
+else err(`apenas ${ENEMIES.length} inimigos (meta: ≥100)`);
+
+const enemyNames = new Set();
+for (const e of ENEMIES) {
+  if (enemyNames.has(e.pt)) err(`inimigo nome duplicado: ${e.pt}`);
+  enemyNames.add(e.pt);
+  try { parseDice(e.hp); } catch { err(`inimigo ${e.id}: hp inválido '${e.hp}'`); }
+  if (!e.attacks?.length) err(`inimigo ${e.id} sem ataques`);
+  for (const a of e.attacks ?? []) {
+    try { parseDice(a.dice); } catch { err(`inimigo ${e.id}: dado de ataque inválido`); }
+    if (!DAMAGE_TYPES.includes(a.dtype)) err(`inimigo ${e.id}: tipo de dano inválido ${a.dtype}`);
+    for (const x of a.extraDamage ?? []) {
+      try { parseDice(x.dice); } catch { err(`inimigo ${e.id}: extraDamage inválido`); }
+      if (!DAMAGE_TYPES.includes(x.element)) err(`inimigo ${e.id}: elemento inválido ${x.element}`);
+    }
+    for (const r of a.riders ?? []) if (!CONDITIONS[r.condition]) err(`inimigo ${e.id}: rider inválido ${r.condition}`);
+  }
+  for (const t of e.traits ?? []) {
+    if (!KNOWN_EFFECTS.has(t.type)) err(`inimigo ${e.id}: traço desconhecido '${t.type}'`);
+    validateEffect(e.id, t);
+  }
+  for (const s of e.specials ?? []) {
+    if (!['smite', 'blast', 'heal', 'buff', 'debuff', 'summon'].includes(s.kind)) err(`inimigo ${e.id}: special inválido ${s.kind}`);
+    if (s.dice) { try { parseDice(s.dice); } catch { err(`inimigo ${e.id}: special dado inválido`); } }
+    if (s.kind === 'summon' && !ENEMY_BY_ID.has(s.summonId)) err(`inimigo ${e.id}: summon de id inexistente ${s.summonId}`);
+    if ((s.kind === 'buff' || s.kind === 'debuff') && !CONDITIONS[s.condition]) err(`inimigo ${e.id}: condição inválida ${s.condition}`);
+  }
+  for (const arr of [e.resist, e.vuln, e.immune]) {
+    for (const t of arr ?? []) if (!DAMAGE_TYPES.includes(t)) err(`inimigo ${e.id}: tipo inválido ${t}`);
+  }
+  for (const c of e.condImmune ?? []) if (!CONDITIONS[c]) err(`inimigo ${e.id}: condImmune inválida ${c}`);
+  if (!e.visual?.body) err(`inimigo ${e.id} sem visual.body`);
+  if (!e.xp) err(`inimigo ${e.id} sem xp`);
+  if (!['m', 'f'].includes(e.gender)) err(`inimigo ${e.id} sem gênero válido`);
+  if (!KNOWN_BEHAVIORS.has(e.behavior)) err(`inimigo ${e.id}: comportamento inválido ${e.behavior}`);
+}
+ok('Todos os inimigos com dados íntegros');
+
+const byTier = {};
+for (const e of ENEMIES) byTier[e.tier] = (byTier[e.tier] ?? 0) + 1;
+console.log('  Distribuição por tier:', JSON.stringify(byTier));
+for (let t = 1; t <= 5; t++) if (!byTier[t]) err(`nenhum inimigo de tier ${t}`);
+
+// ---------- zonas ----------
+console.log(`\nZonas: ${ZONES.length}`);
+for (const z of ZONES) {
+  if (!ENEMY_BY_ID.has(z.boss)) err(`zona ${z.id}: chefe inexistente ${z.boss}`);
+  for (const m of z.bossMinions ?? []) if (!ENEMY_BY_ID.has(m)) err(`zona ${z.id}: lacaio inexistente ${m}`);
+  const families = new Set(ENEMIES.map((e) => e.family));
+  for (const f of z.families) if (!families.has(f)) err(`zona ${z.id}: família inexistente ${f}`);
+  // pool viável?
+  const pool = ENEMIES.filter((e) => !e.boss && z.families.includes(e.family) && e.tier <= z.tier && e.tier >= Math.max(1, z.tier - 2));
+  if (pool.length < 5) err(`zona ${z.id}: pool de inimigos pequeno demais (${pool.length})`);
+}
+ok('Zonas válidas com chefes e pools de inimigos');
+
+// ---------- habilidades / itens ----------
+console.log(`\nHabilidades da Frosty: ${FROSTY_ABILITIES.length} ativas, ${FROSTY_PASSIVES.length} passivas`);
+for (const a of FROSTY_ABILITIES) {
+  if (a.dice) { try { parseDice(a.dice); } catch { err(`habilidade ${a.id}: dado inválido`); } }
+  for (const r of a.riders ?? []) if (!CONDITIONS[r.condition]) err(`habilidade ${a.id}: rider inválido`);
+  if (a.condition && !CONDITIONS[a.condition]) err(`habilidade ${a.id}: condição inválida`);
+  for (const sc of a.selfConditions ?? []) if (!CONDITIONS[sc.condition]) err(`habilidade ${a.id}: selfCondition inválida`);
+}
+for (const p of Object.values(POTIONS)) {
+  if (p.healDice) { try { parseDice(p.healDice); } catch { err(`poção ${p.id}: dado inválido`); } }
+  if (p.condition && !CONDITIONS[p.condition]) err(`poção ${p.id}: condição inválida`);
+}
+ok('Habilidades e itens válidos');
+
+// ---------- combinações nome PT ----------
+console.log('\nAmostras de nomes gerados:');
+import('../src/core/unit.js').then(({ composeName }) => {
+  const samples = [
+    [ENEMY_BY_ID.get('aranha'), [ADJECTIVES.find((a) => a.id === 'venenoso')]],
+    [ENEMY_BY_ID.get('goblin'), [ADJECTIVES.find((a) => a.id === 'flamejante'), ADJECTIVES.find((a) => a.id === 'gigante')]],
+    [ENEMY_BY_ID.get('mumia'), [ADJECTIVES.find((a) => a.id === 'anciao')]],
+    [ENEMY_BY_ID.get('lobo'), [ADJECTIVES.find((a) => a.id === 'sortudo')]],
+    [ENEMY_BY_ID.get('pantera'), [ADJECTIVES.find((a) => a.id === 'gelido')]],
+  ];
+  for (const [base, adjs] of samples) {
+    console.log(`  → ${composeName(base, adjs)}`);
+  }
+
+  console.log(`\nCombinações possíveis: ${ENEMIES.length} inimigos × ${ADJECTIVES.length} adjetivos = ${(ENEMIES.length * ADJECTIVES.length).toLocaleString('pt-BR')} variantes de 1 adjetivo`);
+  console.log(`(sem contar combinações de 2-3 adjetivos: milhões de variantes)\n`);
+
+  if (errors > 0) {
+    console.error(`\n❌ ${errors} erro(s) de validação!\n`);
+    process.exit(1);
+  } else {
+    console.log('✅ VALIDAÇÃO COMPLETA: todos os dados íntegros!\n');
+  }
+});
