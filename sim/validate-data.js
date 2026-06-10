@@ -200,6 +200,41 @@ ok('Habilidades, passivas, zonas, itens, condições e tipos de dano em EN');
   setLocale(prev);
 }
 
+// ---------- trilha sonora ----------
+console.log('\nTrilha sonora:');
+{
+  const { TRACKS, trackForBattle } = await import('../src/audio/tracks.js');
+  const ids = Object.keys(TRACKS);
+  if (ids.length === 10) ok('10 faixas (5 zonas + 5 chefes)');
+  else err(`esperava 10 faixas, há ${ids.length}`);
+  for (let z = 1; z <= 5; z++) {
+    if (!TRACKS[`zone${z}`]) err(`faixa da zona ${z} ausente`);
+    if (!TRACKS[`zone${z}boss`]) err(`faixa do chefe da zona ${z} ausente`);
+    if (trackForBattle(z, false) !== `zone${z}` || trackForBattle(z, true) !== `zone${z}boss`) {
+      err(`mapeamento de faixa errado para zona ${z}`);
+    }
+  }
+  for (const [id, tr] of Object.entries(TRACKS)) {
+    if (tr.parts.length !== 5) err(`faixa ${id}: ${tr.parts.length} partes (esperava 5 — loop 5→1)`);
+    if (!(tr.bpm >= 60 && tr.bpm <= 200)) err(`faixa ${id}: bpm fora da faixa (${tr.bpm})`);
+    if (!Array.isArray(tr.mode) || tr.mode.length !== 7) err(`faixa ${id}: modo inválido`);
+    tr.parts.forEach((p, i) => {
+      if (!(p.bars >= 4 && p.bars <= 16)) err(`faixa ${id} parte ${i + 1}: bars inválido`);
+      if (!Array.isArray(p.chords) || p.chords.length === 0) err(`faixa ${id} parte ${i + 1}: sem acordes`);
+      const maxStep = p.bars * 16;
+      for (const n of p.lead ?? []) {
+        const [deg, oct, start, len] = n;
+        if (start < 0 || start >= maxStep) err(`faixa ${id} parte ${i + 1}: nota fora da parte (start ${start})`);
+        if (len <= 0) err(`faixa ${id} parte ${i + 1}: nota com duração inválida`);
+        if (typeof deg !== 'number' || typeof oct !== 'number') err(`faixa ${id} parte ${i + 1}: nota malformada`);
+      }
+      if (typeof p.intensity !== 'number' || p.intensity <= 0 || p.intensity > 1) err(`faixa ${id} parte ${i + 1}: intensidade inválida`);
+    });
+  }
+  const total = Object.values(TRACKS).reduce((s, tr) => s + tr.parts.reduce((q, p) => q + p.bars * (60 / tr.bpm) * 4, 0), 0);
+  ok(`Estrutura das 10 faixas válida (loop total ≈ ${Math.round(total / 60)} min de música original)`);
+}
+
 // ---------- combinações nome PT ----------
 console.log('\nAmostras de nomes gerados:');
 import('../src/core/unit.js').then(({ composeName }) => {

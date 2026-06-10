@@ -1,41 +1,72 @@
-// Áudio procedural via WebAudio: efeitos sintetizados + ambiente por zona.
-// Sem arquivos externos — tudo gerado em tempo real.
+// Áudio procedural via WebAudio: efeitos sintetizados + canais de volume
+// separados (música / golpes & efeitos), persistidos em localStorage.
+// A música em si fica em audio/music.js (MusicEngine usa o musicGain daqui).
+
+const LS_MUSIC = 'frosty-vol-music';
+const LS_SFX = 'frosty-vol-sfx';
+const LS_MUTE = 'frosty-muted';
+
+function readLS(key, fallback) {
+  try {
+    const v = localStorage.getItem(key);
+    return v == null ? fallback : v;
+  } catch { return fallback; }
+}
 
 export class Sfx {
   constructor() {
     this.ctx = null;
     this.master = null;
+    this.sfxGain = null;
     this.musicGain = null;
-    this.muted = this.loadMuted();
-    this.musicNodes = [];
+    this.muted = readLS(LS_MUTE, '0') === '1';
+    this.volMusic = Math.max(0, Math.min(100, +readLS(LS_MUSIC, 70)));
+    this.volSfx = Math.max(0, Math.min(100, +readLS(LS_SFX, 80)));
   }
 
   ensure() {
     if (!this.ctx) {
       this.ctx = new (window.AudioContext || window.webkitAudioContext)();
       this.master = this.ctx.createGain();
-      this.master.gain.value = this.muted ? 0 : 0.5;
+      this.master.gain.value = this.muted ? 0 : 1;
       this.master.connect(this.ctx.destination);
+      this.sfxGain = this.ctx.createGain();
+      this.sfxGain.connect(this.master);
       this.musicGain = this.ctx.createGain();
-      this.musicGain.gain.value = 0.16;
       this.musicGain.connect(this.master);
+      this.applyVolumes();
     }
     if (this.ctx.state === 'suspended') this.ctx.resume();
     return this.ctx;
   }
 
-  loadMuted() {
-    try { return localStorage.getItem('frosty-muted') === '1'; } catch { return false; }
+  applyVolumes() {
+    if (!this.ctx) return;
+    // curvas: efeitos até 0.55, música até 0.34 (equilíbrio mix)
+    this.sfxGain.gain.value = (this.volSfx / 100) * 0.55;
+    this.musicGain.gain.value = (this.volMusic / 100) * 0.34;
+  }
+
+  setMusicVolume(v) {
+    this.volMusic = Math.max(0, Math.min(100, Math.round(v)));
+    try { localStorage.setItem(LS_MUSIC, String(this.volMusic)); } catch { /* ok */ }
+    this.applyVolumes();
+  }
+
+  setSfxVolume(v) {
+    this.volSfx = Math.max(0, Math.min(100, Math.round(v)));
+    try { localStorage.setItem(LS_SFX, String(this.volSfx)); } catch { /* ok */ }
+    this.applyVolumes();
   }
 
   toggleMute() {
     this.muted = !this.muted;
-    try { localStorage.setItem('frosty-muted', this.muted ? '1' : '0'); } catch { /* ok */ }
-    if (this.master) this.master.gain.value = this.muted ? 0 : 0.5;
+    try { localStorage.setItem(LS_MUTE, this.muted ? '1' : '0'); } catch { /* ok */ }
+    if (this.master) this.master.gain.value = this.muted ? 0 : 1;
     return this.muted;
   }
 
-  // ---------- blocos de síntese ----------
+  // ---------- blocos de síntese (canal de EFEITOS) ----------
   tone({ freq = 440, type = 'sine', dur = 0.15, vol = 0.3, slide = 0, delay = 0 }) {
     const ctx = this.ensure();
     const t0 = ctx.currentTime + delay;
@@ -46,7 +77,7 @@ export class Sfx {
     if (slide) osc.frequency.exponentialRampToValueAtTime(Math.max(30, freq + slide), t0 + dur);
     g.gain.setValueAtTime(vol, t0);
     g.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
-    osc.connect(g).connect(this.master);
+    osc.connect(g).connect(this.sfxGain);
     osc.start(t0);
     osc.stop(t0 + dur + 0.02);
   }
@@ -68,7 +99,7 @@ export class Sfx {
     const g = ctx.createGain();
     g.gain.setValueAtTime(vol, t0);
     g.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
-    src.connect(filter).connect(g).connect(this.master);
+    src.connect(filter).connect(g).connect(this.sfxGain);
     src.start(t0);
   }
 
@@ -104,39 +135,5 @@ export class Sfx {
   }
   defeat() {
     [400, 320, 250, 180].forEach((f, i) => this.tone({ freq: f, type: 'sawtooth', dur: 0.4, vol: 0.12, delay: i * 0.18 }));
-  }
-
-  // ---------- ambiente por zona ----------
-  stopMusic() {
-    for (const n of this.musicNodes) {
-      try { n.stop ? n.stop() : n.disconnect(); } catch { /* ok */ }
-    }
-    this.musicNodes = [];
-  }
-
-  playZoneAmbient(tier = 1) {
-    const ctx = this.ensure();
-    this.stopMusic();
-    // acordes por zona (fundamental em Hz)
-    const roots = { 1: 220, 2: 196, 3: 174.6, 4: 164.8, 5: 146.8 };
-    const root = roots[tier] ?? 220;
-    const intervals = tier >= 4 ? [1, 1.189, 1.498] : [1, 1.26, 1.498]; // menor p/ zonas sombrias
-    for (let i = 0; i < intervals.length; i++) {
-      const osc = ctx.createOscillator();
-      osc.type = 'sine';
-      osc.frequency.value = root * intervals[i] / 2;
-      const g = ctx.createGain();
-      g.gain.value = 0.05;
-      // LFO sutil
-      const lfo = ctx.createOscillator();
-      lfo.frequency.value = 0.07 + i * 0.03;
-      const lfoGain = ctx.createGain();
-      lfoGain.gain.value = 0.02;
-      lfo.connect(lfoGain).connect(g.gain);
-      osc.connect(g).connect(this.musicGain);
-      osc.start();
-      lfo.start();
-      this.musicNodes.push(osc, lfo);
-    }
   }
 }

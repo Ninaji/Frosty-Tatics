@@ -8,6 +8,8 @@ import { BattleRenderer } from './render/eventPlayer.js';
 import { buildFrosty, buildEnemyMesh } from './render/characters.js';
 import { ENEMY_BY_ID } from './data/enemies.js';
 import { Sfx } from './audio/sfx.js';
+import { MusicEngine } from './audio/music.js';
+import { trackForBattle, MENU_TRACK } from './audio/tracks.js';
 import { Hud } from './ui/hud.js';
 import { Screens } from './ui/screens.js';
 import { div, setHTML } from './ui/dom.js';
@@ -30,6 +32,8 @@ class App {
     this.sceneMgr = new SceneManager(this.canvas);
     this.fx = new FX(this.sceneMgr);
     this.sfx = new Sfx();
+    this.music = new MusicEngine(this.sfx);
+    this._pendingTrack = null;
     this.screens = new Screens(this.uiRoot);
 
     this.dmgLayer = div('dmg-layer');
@@ -144,11 +148,21 @@ class App {
     });
   }
 
+  // música respeitando a política de autoplay: só toca após o 1º gesto do usuário
+  playMusic(trackId) {
+    if (this.sfx.ctx && this.sfx.ctx.state === 'running') {
+      this.music.play(trackId);
+    } else {
+      this._pendingTrack = trackId;
+    }
+  }
+
   // ================= MENU =================
   showMenu() {
     this.teardownBattle();
     this.hud.hide();
     this.setupMenuDecor();
+    this.playMusic(MENU_TRACK);
     this.screens.mainMenu({
       hasSave: hasSave(),
       campaignComplete: loadSave()?.campaignComplete,
@@ -173,6 +187,13 @@ class App {
         if (this.game) recomputeHero(this.game.hero);
         this.hud.applyStaticLabels(this.speed);
         this.showMenu(); // re-renderiza no novo idioma
+      },
+      volumes: {
+        getMusic: () => this.sfx.volMusic,
+        getSfx: () => this.sfx.volSfx,
+        setMusic: (v) => this.sfx.setMusicVolume(v),
+        setSfx: (v) => this.sfx.setSfxVolume(v),
+        testSfx: () => { this.sfx.ensure(); this.sfx.hit(); },
       },
     });
   }
@@ -272,7 +293,7 @@ class App {
     this.hud.clearLog();
     this.hud.show();
     this.selectedAbility = null;
-    this.sfx.playZoneAmbient(zone.tier);
+    this.playMusic(trackForBattle(zone.tier, battle.isBossBattle));
 
     // anima eventos do início (iniciativa + possíveis turnos inimigos)
     this.renderer.drainAndPlay().then(() => {
@@ -509,6 +530,19 @@ class App {
   // ================= INPUT =================
   bindInput() {
     let lastHover = null;
+
+    // desbloqueio de áudio no primeiro gesto (política de autoplay dos browsers)
+    const unlockAudio = () => {
+      this.sfx.ensure();
+      if (this._pendingTrack) {
+        this.music.play(this._pendingTrack);
+        this._pendingTrack = null;
+      }
+      window.removeEventListener('pointerdown', unlockAudio, true);
+      window.removeEventListener('keydown', unlockAudio, true);
+    };
+    window.addEventListener('pointerdown', unlockAudio, true);
+    window.addEventListener('keydown', unlockAudio, true);
 
     this.canvas.addEventListener('pointermove', (e) => {
       if (!this.battle || !this.renderer || this.renderer.busy) return;

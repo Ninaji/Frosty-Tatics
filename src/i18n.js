@@ -51,6 +51,8 @@ export const PT = {
   'menu.blurb': 'Frosty, a tiefling alada da espada bastarda Geada Eterna, enfrenta as hordas do Vazio em 50 batalhas táticas por 5 zonas — e além, no Modo Infinito.',
   'menu.confirmNew': 'Começar do zero apaga o progresso salvo. Continuar?',
   'menu.language': '🌐 English',
+  'settings.music': '🎵 Música',
+  'settings.sfx': '⚔️ Golpes & Efeitos',
 
   // seletor de idioma
   'lang.pick': 'Escolha seu idioma · Choose your language',
@@ -209,6 +211,8 @@ export const EN = {
   'menu.blurb': 'Frosty, the winged tiefling wielding the bastard sword Everfrost, faces the hordes of the Void across 50 tactical battles in 5 zones — and beyond, in Endless Mode.',
   'menu.confirmNew': 'Starting over erases your saved progress. Continue?',
   'menu.language': '🌐 Português',
+  'settings.music': '🎵 Music',
+  'settings.sfx': '⚔️ Hits & SFX',
 
   'lang.pick': 'Choose your language · Escolha seu idioma',
 

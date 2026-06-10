@@ -78,12 +78,24 @@ export class Screens {
   }
 
   // ---------- MENU PRINCIPAL ----------
-  mainMenu({ hasSave, campaignComplete, onNew, onContinue, onBestiary, onHelp, onLanguage }) {
+  mainMenu({ hasSave, campaignComplete, onNew, onContinue, onBestiary, onHelp, onLanguage, volumes }) {
     const el = div('screen transparent fade-in');
     setHTML(el, `
       <div class="game-title">FROSTY TACTICS</div>
       <div class="game-subtitle">${esc(t('title.sub'))}</div>
       <div class="menu-buttons"></div>
+      <div class="volume-panel">
+        <div class="vol-row">
+          <span class="vol-label">${esc(t('settings.music'))}</span>
+          <input type="range" class="vol-music" min="0" max="100" step="1">
+          <span class="vol-value vol-music-val"></span>
+        </div>
+        <div class="vol-row">
+          <span class="vol-label">${esc(t('settings.sfx'))}</span>
+          <input type="range" class="vol-sfx" min="0" max="100" step="1">
+          <span class="vol-value vol-sfx-val"></span>
+        </div>
+      </div>
       <div style="color:var(--text-dim);font-size:0.85rem;max-width:430px;text-align:center;line-height:1.5">
         ${esc(t('menu.blurb'))}
       </div>
@@ -105,6 +117,23 @@ export class Screens {
     mk(t('menu.bestiary'), onBestiary);
     mk(t('menu.help'), onHelp);
     mk(t('menu.language'), onLanguage);
+
+    // sliders de volume (aplicação ao vivo + persistência)
+    if (volumes) {
+      const $m = el.querySelector('.vol-music');
+      const $s = el.querySelector('.vol-sfx');
+      const $mv = el.querySelector('.vol-music-val');
+      const $sv = el.querySelector('.vol-sfx-val');
+      $m.value = volumes.getMusic();
+      $s.value = volumes.getSfx();
+      $mv.textContent = `${$m.value}%`;
+      $sv.textContent = `${$s.value}%`;
+      $m.oninput = () => { volumes.setMusic(+$m.value); $mv.textContent = `${$m.value}%`; };
+      $s.oninput = () => { volumes.setSfx(+$s.value); $sv.textContent = `${$s.value}%`; };
+      $s.onchange = () => volumes.testSfx(); // som de teste ao soltar
+    } else {
+      el.querySelector('.volume-panel').style.display = 'none';
+    }
     return this.show(el);
   }
 
