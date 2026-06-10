@@ -6,20 +6,22 @@ import { mod, proficiency } from './stats.js';
 import { applyResistance } from './damage.js';
 import { conditionDef } from './conditions.js';
 import { effectsOf, hasEffect, sumEffect } from './effects.js';
+import { t } from '../i18n.js';
+import { condName, damageTypeName, abilityScoreAbbr } from '../i18n-data.js';
 
 // ---------- utilidades de condição ----------
 
 export function addCondition(ctx, unit, condId, duration = 2, source = null) {
   const def = conditionDef(condId);
   if (unit.conditionImmunities?.has(condId)) {
-    ctx.log(`${unit.name} é imune a ${def.pt}!`, 'info');
+    ctx.log(t('log.immuneCond', { name: unit.name, cond: condName(def) }), 'info');
     return false;
   }
   const existing = unit.conditions.get(condId);
   const dur = Math.max(duration, existing?.duration ?? 0);
   unit.conditions.set(condId, { duration: dur, source });
   ctx.event({ type: 'condition', unitId: unit.id, condition: condId, on: true });
-  ctx.log(`${unit.name} está ${def.pt}! (${dur} turnos)`, 'condition');
+  ctx.log(t('log.gainedCond', { name: unit.name, cond: condName(def), n: dur }), 'condition');
   return true;
 }
 
@@ -87,7 +89,10 @@ export function savingThrow(ctx, unit, ability, dc) {
   const total = value + bonus;
   const success = total >= dc;
   ctx.log(
-    `${unit.name} — teste de ${ability.toUpperCase()}: ${value}+${bonus}=${total} vs CD${dc} → ${success ? 'sucesso' : 'falha'}`,
+    t('log.save', {
+      name: unit.name, ab: abilityScoreAbbr(ability), roll: value, bonus, total, dc,
+      result: t(success ? 'log.saveSuccess' : 'log.saveFail'),
+    }),
     'roll'
   );
   return success;
@@ -113,10 +118,10 @@ export function dealDamage(ctx, target, packets, source = null, { isMelee = fals
   });
   if (total > 0) {
     const parts = detail.filter((p) => p.final > 0)
-      .map((p) => `${p.final} ${p.type}${p.factor === 0.5 ? ' (resistiu)' : p.factor === 2 ? ' (vulnerável!)' : ''}`);
-    ctx.log(`→ ${target.name} sofre ${total} de dano (${parts.join(' + ')}). [${target.hp}/${target.maxHp} PV]`, 'damage');
+      .map((p) => `${p.final} ${damageTypeName(p.type)}${p.factor === 0.5 ? t('log.resisted') : p.factor === 2 ? t('log.vulnerable') : ''}`);
+    ctx.log(t('log.damage', { name: target.name, n: total, parts: parts.join(' + '), hp: target.hp, max: target.maxHp }), 'damage');
   } else {
-    ctx.log(`→ ${target.name} não sofre dano (imune).`, 'info');
+    ctx.log(t('log.noDamage', { name: target.name }), 'info');
   }
 
   let died = false;
@@ -130,7 +135,7 @@ export function dealDamage(ctx, target, packets, source = null, { isMelee = fals
         target._raging = true;
         target.dmgFlat = (target.dmgFlat ?? 0) + e.dmgBonus;
         target.ac -= e.acPenalty ?? 0;
-        ctx.log(`${target.name} entra em FÚRIA!`, 'special');
+        ctx.log(t('log.rage', { name: target.name }), 'special');
         ctx.event({ type: 'rage', unitId: target.id });
       }
     }
@@ -150,14 +155,14 @@ export function heal(ctx, unit, amount) {
   unit.hp += healed;
   if (healed > 0) {
     ctx.event({ type: 'heal', unitId: unit.id, amount: healed, hpAfter: unit.hp });
-    ctx.log(`${unit.name} recupera ${healed} PV.`, 'heal');
+    ctx.log(t('log.heals', { name: unit.name, n: healed }), 'heal');
   }
   return healed;
 }
 
 export function handleDeath(ctx, unit, killer) {
   unit.alive = false;
-  ctx.log(`💀 ${unit.name} foi derrotado!`, 'death');
+  ctx.log(t('log.defeated', { name: unit.name }), 'death');
   ctx.event({ type: 'death', unitId: unit.id, killerId: killer?.id ?? null });
 
   // efeitos ao morrer
@@ -240,7 +245,7 @@ export function resolveAttack(ctx, attacker, defender, attack, opts = {}) {
   if (natural === 1 && hasEffect(attacker, 'rerollOnes')) {
     const re = rollD20(ctx.rng, 0);
     natural = re.value;
-    ctx.log(`${attacker.name} é sortudo e rerola o 1! → ${natural}`, 'roll');
+    ctx.log(t('log.lucky', { name: attacker.name, n: natural }), 'roll');
   }
 
   const bonus = attackBonusOf(attacker, attack);
@@ -269,14 +274,14 @@ export function resolveAttack(ctx, attacker, defender, attack, opts = {}) {
   });
 
   if (isMiss) {
-    ctx.log(`${attacker.name} ataca ${defender.name} com ${attack.pt}: ${natural}+${bonus + diceBonus}=${total} vs CA${ac} → ERROU!`, 'miss');
+    ctx.log(t('log.miss', { a: attacker.name, d: defender.name, w: attack.pt, roll: natural, bonus: bonus + diceBonus, total, ac }), 'miss');
     return { hit: false, crit: false, damage: 0 };
   }
 
   // esquiva total (chance)
   for (const e of effectsOf(defender, 'dodge')) {
     if (ctx.rng.chance(e.chance)) {
-      ctx.log(`${defender.name} ESQUIVA do golpe!`, 'miss');
+      ctx.log(t('log.dodges', { name: defender.name }), 'miss');
       ctx.event({ type: 'dodge', unitId: defender.id });
       return { hit: false, crit: false, damage: 0, dodged: true };
     }
@@ -314,9 +319,9 @@ export function resolveAttack(ctx, attacker, defender, attack, opts = {}) {
     packets.push({ amount: r.total, type: x.element });
   }
 
-  const critTxt = isCrit ? ' 💥 CRÍTICO!' : '';
+  const critTxt = isCrit ? t('log.crit') : '';
   ctx.log(
-    `${attacker.name} acerta ${defender.name} com ${attack.pt}: ${natural}+${bonus + diceBonus}=${total} vs CA${ac}.${critTxt}`,
+    t('log.hit', { a: attacker.name, d: defender.name, w: attack.pt, roll: natural, bonus: bonus + diceBonus, total, ac }) + critTxt,
     isCrit ? 'crit' : 'hit'
   );
 
@@ -341,7 +346,7 @@ export function resolveAttack(ctx, attacker, defender, attack, opts = {}) {
     const amt = Math.floor(result.total * e.fraction);
     if (amt > 0) {
       heal(ctx, attacker, amt);
-      ctx.log(`${attacker.name} drena ${amt} PV!`, 'special');
+      ctx.log(t('log.lifesteal', { name: attacker.name, n: amt }), 'special');
     }
   }
 
@@ -349,7 +354,7 @@ export function resolveAttack(ctx, attacker, defender, attack, opts = {}) {
   if (isMelee && defender.alive !== false) {
     for (const e of effectsOf(defender, 'thorns')) {
       const r = rollDice(ctx.rng, e.dice);
-      ctx.log(`${defender.name} reflete ${r.total} de dano (espinhos)!`, 'special');
+      ctx.log(t('log.thorns', { name: defender.name, n: r.total }), 'special');
       dealDamage(ctx, attacker, [{ amount: r.total, type: e.element ?? 'perfurante' }], defender);
     }
   }

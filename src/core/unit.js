@@ -1,10 +1,13 @@
 // Construção de unidades: combina inimigo base + adjetivos em uma variante
-// única, com nome em português (concordância de gênero), stats modificados,
-// resistências, efeitos e visual.
+// única, com nome localizado (PT com gênero / EN com adjetivos antepostos),
+// stats modificados, resistências, efeitos e visual.
 
 import { rollDice, parseDice } from './dice.js';
 import { mod } from './stats.js';
 import { applyStatEffects } from './effects.js';
+import {
+  composeLocalizedName, enemyName, enemyAttackName, enemySpecialName,
+} from '../i18n-data.js';
 
 let nextUnitId = 1;
 export function resetUnitIds() { nextUnitId = 1; }
@@ -13,6 +16,7 @@ function adjectiveForm(adj, gender) {
   return gender === 'f' ? (adj.f ?? adj.m) : adj.m;
 }
 
+// composição PT pura (usada pelo validador para amostras)
 export function composeName(base, adjectives) {
   let name = base.pt;
   for (const adj of adjectives) name += ` ${adjectiveForm(adj, base.gender)}`;
@@ -65,8 +69,8 @@ export function buildEnemy(rng, base, adjectives = [], opts = {}) {
     family: base.family,
     tier: base.tier,
     level: base.tier * 2,
-    name: composeName(base, adjectives),
-    baseName: base.pt,
+    name: composeLocalizedName(base, adjectives),
+    baseName: enemyName(base),
     gender: base.gender,
     adjectives,
     adjectiveIds: adjectives.map((a) => a.id),
@@ -79,8 +83,8 @@ export function buildEnemy(rng, base, adjectives = [], opts = {}) {
     ac: raw.ac, speed: raw.speed,
     dmgFlat: raw.dmgFlat, dmgMult: raw.dmgMult,
 
-    attacks: base.attacks.map((a) => ({ ...a })),
-    specials: (base.specials ?? []).map((s) => ({ ...s })),
+    attacks: base.attacks.map((a, i) => ({ ...a, pt: enemyAttackName(base.id, i, a.pt) })),
+    specials: (base.specials ?? []).map((s, i) => ({ ...s, pt: enemySpecialName(base.id, i, s.pt) })),
 
     resistances, vulnerabilities, immunities, conditionImmunities,
     conditions: new Map(),

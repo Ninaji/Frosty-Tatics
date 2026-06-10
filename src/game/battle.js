@@ -14,6 +14,10 @@ import { buildEnemy } from '../core/unit.js';
 import { ENEMY_BY_ID } from '../data/enemies.js';
 import { POTIONS, NEGATIVE_CONDITIONS } from '../data/items.js';
 import { runEnemyTurn } from './ai.js';
+import { t as tr } from '../i18n.js';
+import {
+  condName, terrainName, abilityName, potionName, enemyName, splitName, zoneName,
+} from '../i18n-data.js';
 
 export class Battle {
   constructor({ hero, enemies, grid, rng, battleIndex = 1, zone = null }) {
@@ -75,7 +79,7 @@ export class Battle {
     this.state = 'active';
     this.round = 1;
     this.ctx.event({ type: 'battleStart', battleIndex: this.battleIndex });
-    this.ctx.log(`⚔️ Batalha ${this.battleIndex} — ${this.zone?.pt ?? ''}`, 'title');
+    this.ctx.log(tr('log.battleTitle', { i: this.battleIndex, zone: this.zone ? zoneName(this.zone) : '' }), 'title');
     this.nextTurn();
   }
 
@@ -100,7 +104,7 @@ export class Battle {
         if (this.round > 150) {
           // salvaguarda: batalha emperrada conta como derrota tática (recuo)
           this.state = 'defeat';
-          this.ctx.log('A batalha se arrasta sem fim — Frosty recua para se reagrupar.', 'death');
+          this.ctx.log(tr('log.stalemate'), 'death');
           this.ctx.event({ type: 'defeat' });
           return;
         }
@@ -133,7 +137,7 @@ export class Battle {
       const def = conditionDef(id);
       if (def.tickDamage) {
         const r = rollDice(this.rng, def.tickDamage.dice);
-        this.ctx.log(`${u.name} sofre com ${def.pt}.`, 'condition');
+        this.ctx.log(tr('log.condTick', { name: u.name, cond: condName(def) }), 'condition');
         dealDamage(this.ctx, u, [{ amount: r.total, type: def.tickDamage.type }], data.source);
         if (!u.alive) { if (this.state === 'active') this.endTurnFor(u); return; }
       }
@@ -149,7 +153,7 @@ export class Battle {
       for (const e of effectsOf(other, 'auraDamage')) {
         if (chebyshev(u.pos, other.pos) <= e.radius) {
           const r = rollDice(this.rng, e.dice);
-          this.ctx.log(`${u.name} é atingido pela aura de ${other.name}!`, 'special');
+          this.ctx.log(tr('log.auraHit', { name: u.name, other: other.name }), 'special');
           dealDamage(this.ctx, u, [{ amount: r.total, type: e.element }], other);
           if (!u.alive) { if (this.state === 'active') this.endTurnFor(u); return; }
         }
@@ -171,7 +175,7 @@ export class Battle {
 
     // se não pode agir (congelado/atordoado), pula
     if (!canAct(u)) {
-      this.ctx.log(`${u.name} não consegue agir!`, 'condition');
+      this.ctx.log(tr('log.cantAct', { name: u.name }), 'condition');
       this.endTurnFor(u);
       return;
     }
@@ -193,7 +197,7 @@ export class Battle {
       if (def.saveEnds && u.alive) {
         if (savingThrow(this.ctx, u, def.saveEnds.ability, def.saveEnds.dc)) {
           removeCondition(this.ctx, u, id);
-          this.ctx.log(`${u.name} se livra de ${def.pt}!`, 'info');
+          this.ctx.log(tr('log.condEnds', { name: u.name, cond: condName(def) }), 'info');
           ended = true;
         }
       }
@@ -294,7 +298,7 @@ export class Battle {
           const stillAdjacent = chebyshev(step, enemy.pos) <= meleeRange;
           if (wasAdjacent && !stillAdjacent && canAct(enemy)) {
             enemy.reactionUsed = true;
-            this.ctx.log(`${enemy.name} aproveita a brecha — ataque de oportunidade!`, 'special');
+            this.ctx.log(tr('log.oa', { name: enemy.name }), 'special');
             this.ctx.event({ type: 'oa', attackerId: enemy.id, defenderId: u.id });
             resolveAttack(this.ctx, enemy, u, enemy.attacks[0]);
             if (!u.alive) { this.checkEnd(); return false; }
@@ -322,7 +326,7 @@ export class Battle {
     if (!hz) return true;
     if (hz.onEnterOnly && !entering) return true;
     const r = rollDice(this.rng, hz.dice);
-    this.ctx.log(`${u.name} sofre com o terreno (${t.terrain})!`, 'condition');
+    this.ctx.log(tr('log.hazard', { name: u.name, terr: terrainName(t.terrain) }), 'condition');
     this.ctx.event({ type: 'hazard', unitId: u.id, terrain: t.terrain });
     dealDamage(this.ctx, u, [{ amount: r.total, type: hz.type }]);
     if (u.alive && hz.rider && !savingThrow(this.ctx, u, hz.rider.save, hz.rider.dc)) {
@@ -381,7 +385,7 @@ export class Battle {
         u.usesLeft.set(ability.id, left - 1);
       }
       if (!ability.freeAction && !ability.isMovement) u.actionsLeft--;
-      this.ctx.event({ type: 'ability', unitId: u.id, abilityId: ability.id, pt: ability.pt });
+      this.ctx.event({ type: 'ability', unitId: u.id, abilityId: ability.id, pt: abilityName(ability) });
     };
 
     switch (ability.kind) {
@@ -390,8 +394,8 @@ export class Battle {
         if (!t?.alive) return false;
         if (chebyshev(u.pos, t.pos) > (ability.range ?? 1)) return false;
         spend();
-        this.ctx.log(`Frosty usa ${ability.pt}!`, 'ability');
-        const atk = { ...u.attacks[0], pt: ability.pt };
+        this.ctx.log(tr('log.heroUses', { ab: abilityName(ability) }), 'ability');
+        const atk = { ...u.attacks[0], pt: abilityName(ability) };
         if (ability.bonusElemental) atk.extraDamage = [...(atk.extraDamage ?? []), ability.bonusElemental];
         if (ability.riders) atk.riders = [...(atk.riders ?? []), ...ability.riders];
         const hBonus = this.heightAdvantage(u, t);
@@ -411,10 +415,10 @@ export class Battle {
         }
         if (!best && chebyshev(u.pos, t.pos) > 1) return false;
         spend();
-        this.ctx.log(`Frosty INVESTE contra ${t.name}!`, 'ability');
+        this.ctx.log(tr('log.heroCharges', { name: t.name }), 'ability');
         if (best) this.moveUnit(u, best.path, { provokes: false });
         if (u.alive && t.alive) {
-          const atk = { ...u.attacks[0], pt: ability.pt };
+          const atk = { ...u.attacks[0], pt: abilityName(ability) };
           if (ability.bonusDice) atk.extraDamage = [...(atk.extraDamage ?? []), { dice: ability.bonusDice, element: u.attacks[0].dtype }];
           resolveAttack(this.ctx, u, t, atk, { advantage: ability.advantage });
         }
@@ -422,7 +426,7 @@ export class Battle {
       }
       case 'aoe': {
         spend();
-        this.ctx.log(`Frosty usa ${ability.pt}!`, 'ability');
+        this.ctx.log(tr('log.heroUses', { ab: abilityName(ability) }), 'ability');
         this.ctx.event({ type: 'blast', x: u.pos.x, y: u.pos.y, radius: ability.radius, element: ability.dtype ?? 'gelo' });
         const targets = this.opponentsOf(u).filter((t) => chebyshev(u.pos, t.pos) <= ability.radius);
         for (const t of targets) {
@@ -432,7 +436,7 @@ export class Battle {
               if (!savingThrow(this.ctx, t, r.save, r.dc)) addCondition(this.ctx, t, r.condition, r.duration, u);
             }
           } else if (ability.weaponMult) {
-            const atk = { ...u.attacks[0], pt: ability.pt };
+            const atk = { ...u.attacks[0], pt: abilityName(ability) };
             const result = resolveAttack(this.ctx, u, t, atk, {});
             void result;
           } else if (ability.dice) {
@@ -456,7 +460,7 @@ export class Battle {
         const dir = target?.dir;
         if (!dir) return false;
         spend();
-        this.ctx.log(`Frosty usa ${ability.pt}!`, 'ability');
+        this.ctx.log(tr('log.heroUses', { ab: abilityName(ability) }), 'ability');
         const tiles = lineTiles(this.grid, u.pos, dir, ability.range);
         this.ctx.event({ type: 'lineBlast', from: { ...u.pos }, tiles: tiles.map((t) => ({ x: t.x, y: t.y })), element: ability.dtype });
         for (const tile of tiles) {
@@ -475,7 +479,7 @@ export class Battle {
       }
       case 'self': {
         spend();
-        this.ctx.log(`Frosty usa ${ability.pt}!`, 'ability');
+        this.ctx.log(tr('log.heroUses', { ab: abilityName(ability) }), 'ability');
         if (ability.healDice) {
           let amount = rollDice(this.rng, ability.healDice).total;
           if (ability.healLevelBonus) amount += this.hero.level;
@@ -488,7 +492,7 @@ export class Battle {
         }
         if (ability.grantsExtraAction) {
           u.actionsLeft += 1;
-          this.ctx.log('Frosty ganha uma ação extra!', 'special');
+          this.ctx.log(tr('log.extraAction'), 'special');
         }
         break;
       }
@@ -503,7 +507,7 @@ export class Battle {
         if (chebyshev(u.pos, { x, y }) > (this.heroState?.wingRange ?? ability.range)) return false;
         spend();
         u.cooldowns.set(ability.id, (this.heroState?.wingCooldown ?? ability.cooldown) + 1);
-        this.ctx.log('Frosty abre as asas e salta pelos céus!', 'ability');
+        this.ctx.log(tr('log.wingJump'), 'ability');
         this.ctx.event({ type: 'wingJump', unitId: u.id, from: { ...u.pos }, to: { x, y } });
         u.pos = { x, y };
         this.applyTileHazard(u, true);
@@ -523,13 +527,13 @@ export class Battle {
     const p = POTIONS[potionId];
     hs.potions[potionId]--;
     this.potionUsedThisTurn = true;
-    this.ctx.log(`Frosty bebe ${p.pt}!`, 'ability');
+    this.ctx.log(tr('log.drinkPotion', { p: potionName(p) }), 'ability');
     this.ctx.event({ type: 'potion', potionId });
     if (p.healDice) heal(this.ctx, this.hero, rollDice(this.rng, p.healDice).total);
     if (p.condition) addCondition(this.ctx, this.hero, p.condition, p.duration, this.hero);
     if (p.cleanse) {
       for (const c of NEGATIVE_CONDITIONS) removeCondition(this.ctx, this.hero, c);
-      this.ctx.log('Todas as condições negativas foram removidas!', 'heal');
+      this.ctx.log(tr('log.cleansed'), 'heal');
     }
     return true;
   }
@@ -543,7 +547,7 @@ export class Battle {
   // ---------- ganchos chamados pelo combate ----------
 
   explodeAt(unit, e) {
-    this.ctx.log(`${unit.name} EXPLODE!`, 'special');
+    this.ctx.log(tr('log.explodes', { name: unit.name }), 'special');
     this.ctx.event({ type: 'blast', x: unit.pos.x, y: unit.pos.y, radius: e.radius, element: e.element });
     for (const t of this.units) {
       if (!t.alive || t === unit) continue;
@@ -569,15 +573,14 @@ export class Battle {
       copy.xp = Math.floor(unit.xp * 0.25);
       copy.goldValue = Math.floor(unit.goldValue * 0.25);
       copy.pos = { x: free[i].x, y: free[i].y };
-      copy.name = `${unit.baseName} Dividido`;
-      if (unit.gender === 'f') copy.name = `${unit.baseName} Dividida`;
+      copy.name = splitName(unit.baseName, unit.gender);
       this.refreshDerived(copy);
       this.units.push(copy);
       this.turnOrder.push(copy);
       spawned++;
       this.ctx.event({ type: 'summon', unitId: copy.id, x: copy.pos.x, y: copy.pos.y, summon: serializeUnitLite(copy) });
     }
-    if (spawned) this.ctx.log(`${unit.name} se divide em ${spawned}!`, 'special');
+    if (spawned) this.ctx.log(tr('log.splits', { name: unit.name, n: spawned }), 'special');
   }
 
   deathHealAllies(unit, e) {
@@ -599,7 +602,7 @@ export class Battle {
     }
     if (!options.length) return;
     const dest = this.rng.pick(options);
-    this.ctx.log(`${unit.name} pisca para outro lugar!`, 'special');
+    this.ctx.log(tr('log.blinks', { name: unit.name }), 'special');
     this.ctx.event({ type: 'blink', unitId: unit.id, from: { ...unit.pos }, to: { x: dest.x, y: dest.y } });
     unit.pos = { x: dest.x, y: dest.y };
   }
@@ -618,7 +621,7 @@ export class Battle {
       this.ctx.event({ type: 'summon', unitId: u.id, x: u.pos.x, y: u.pos.y, summon: serializeUnitLite(u) });
       n++;
     }
-    if (n) this.ctx.log(`${summoner.name} invoca ${n} ${base.pt}${n > 1 ? 's' : ''}!`, 'special');
+    if (n) this.ctx.log(tr('log.summons', { name: summoner.name, n, what: enemyName(base) }), 'special');
     return n;
   }
 
@@ -635,7 +638,7 @@ export class Battle {
     if (this.state !== 'active') return;
     if (!this.hero.alive) {
       this.state = 'defeat';
-      this.ctx.log('💔 Frosty caiu em batalha...', 'death');
+      this.ctx.log(tr('log.heroFell'), 'death');
       this.ctx.event({ type: 'defeat' });
       return;
     }
@@ -644,7 +647,7 @@ export class Battle {
       const bonus = Math.floor(30 + this.battleIndex * 18);
       this.xpEarned += bonus;
       this.goldEarned += Math.floor(15 + this.battleIndex * 6);
-      this.ctx.log(`🏆 VITÓRIA! +${this.xpEarned} XP, +${this.goldEarned} ouro`, 'title');
+      this.ctx.log(tr('log.victory', { xp: this.xpEarned, gold: this.goldEarned }), 'title');
       this.ctx.event({ type: 'victory', xp: this.xpEarned, gold: this.goldEarned, kills: this.killCount });
     }
   }

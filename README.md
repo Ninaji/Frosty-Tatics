@@ -1,8 +1,10 @@
-# ❄️ Frosty Tactics — A Lâmina Rúnica
+# ❄️ Frosty Tactics — A Lâmina Rúnica · The Runic Blade
 
-Jogo tático 3D isométrico por turnos no browser, no espírito de **Final Fantasy Tactics**, com regras inspiradas em **D&D 5e**. Você é **Frosty** — uma tiefling alada de pele azul, chifres dourados, uma asa negra e uma asa branca, empunhando a espada bastarda rúnica **Geada Eterna**.
+Jogo tático 3D isométrico por turnos no browser, no espírito de **Final Fantasy Tactics**, com regras inspiradas em **D&D 5e**. Você é **Frosty** — uma tiefling alada de pele azul, chifres dourados, uma asa negra e uma asa branca, empunhando a espada bastarda rúnica **Geada Eterna** (*Everfrost*).
 
-![tech](https://img.shields.io/badge/Three.js-3D-blue) ![lang](https://img.shields.io/badge/PT--BR-100%25-green)
+🌐 **Bilíngue**: seletor de idioma (Português/English) na entrada do jogo — 100% traduzido, incluindo os 115 inimigos, 279 adjetivos, habilidades e o log de combate, com completude verificada no CI.
+
+![tech](https://img.shields.io/badge/Three.js-3D-blue) ![lang](https://img.shields.io/badge/PT--BR%20%2B%20EN-bilingual-green)
 
 ## ▶️ JOGUE AGORA (no browser, grátis)
 
@@ -31,6 +33,7 @@ npm run preview
 | `?auto` | avança batalhas/loja/atributos automaticamente |
 | `?speed=4` | velocidade das animações (1-10) |
 | `?seed=123` | campanha com seed fixa |
+| `?lang=en` / `?lang=pt` | força o idioma |
 
 ## ⚔️ O Jogo
 

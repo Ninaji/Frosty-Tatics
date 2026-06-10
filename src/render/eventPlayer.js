@@ -5,6 +5,8 @@ import { UnitView } from './units.js';
 import { delay } from './tween.js';
 import { conditionDef } from '../core/conditions.js';
 import { DAMAGE_COLORS } from '../core/damage.js';
+import { t } from '../i18n.js';
+import { condName } from '../i18n-data.js';
 
 export class BattleRenderer {
   constructor({ sceneMgr, fx, dmg, audio, battle, tilemap, onLog, onSync, speed = 1 }) {
@@ -89,7 +91,7 @@ export class BattleRenderer {
           this.audio?.slash();
           await av.attackLunge(dv);
           if (!e.hit) {
-            this.dmg.show(dv.worldAnchor(), 'errou', 'miss');
+            this.dmg.show(dv.worldAnchor(), t('float.miss'), 'miss');
             this.audio?.miss();
           }
         }
@@ -118,7 +120,7 @@ export class BattleRenderer {
       }
 
       case 'dodge':
-        if (v) this.dmg.show(v.worldAnchor(), 'esquivou!', 'dodge');
+        if (v) this.dmg.show(v.worldAnchor(), t('float.dodge'), 'dodge');
         await delay(this.d(120));
         break;
 
@@ -142,7 +144,7 @@ export class BattleRenderer {
       case 'condition': {
         if (v && e.on) {
           const def = conditionDef(e.condition);
-          this.dmg.show(v.worldAnchor(0.95), `${def.icon} ${def.pt}`, 'condition');
+          this.dmg.show(v.worldAnchor(0.95), `${def.icon} ${condName(def)}`, 'condition');
           await delay(this.d(160));
         }
         this.onSync();
@@ -197,14 +199,14 @@ export class BattleRenderer {
 
       case 'rage':
         if (v) {
-          this.dmg.show(v.worldAnchor(), '💢 FÚRIA!', 'rage');
+          this.dmg.show(v.worldAnchor(), t('float.rage'), 'rage');
           this.fx.burst(v.worldAnchor(0.5), '#ff4444', { count: 20 });
           await delay(this.d(180));
         }
         break;
 
       case 'oa':
-        this.dmg.show(this.view(e.attackerId)?.worldAnchor() ?? this.tileWorld(0, 0), '⚡ oportunidade!', 'condition');
+        this.dmg.show(this.view(e.attackerId)?.worldAnchor() ?? this.tileWorld(0, 0), t('float.oa'), 'condition');
         await delay(this.d(120));
         break;
 

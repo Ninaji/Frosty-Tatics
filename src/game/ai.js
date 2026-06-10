@@ -5,6 +5,7 @@
 import { resolveAttack, heal, addCondition, savingThrow, dealDamage } from '../core/combat.js';
 import { rollDice } from '../core/dice.js';
 import { chebyshev } from './grid.js';
+import { t as tr } from '../i18n.js';
 
 export function runEnemyTurn(battle, u) {
   const ctx = battle.ctx;
@@ -12,7 +13,7 @@ export function runEnemyTurn(battle, u) {
   if (!hero.alive || battle.state !== 'active') return;
 
   if (u.behavior === 'preguicoso' && battle.rng.chance(0.25)) {
-    ctx.log(`${u.name} boceja, sem vontade de lutar.`, 'info');
+    ctx.log(tr('log.lazy', { name: u.name }), 'info');
     return;
   }
 
@@ -107,7 +108,7 @@ function fleeFrom(battle, u, threatPos, maxCost = null) {
     if (d > bestD) { bestD = d; best = r; }
   }
   if (best) {
-    battle.ctx.log(`${u.name} recua!`, 'info');
+    battle.ctx.log(tr('log.retreats', { name: u.name }), 'info');
     u.movementLeft -= best.cost;
     battle.moveUnit(u, best.path);
   }
@@ -136,7 +137,7 @@ function tryUseSpecial(battle, u) {
           .sort((a, b) => a.hp / a.maxHp - b.hp / b.maxHp)[0];
         if (!wounded) continue;
         markUsed();
-        ctx.log(`${u.name} usa ${sp.pt}!`, 'ability');
+        ctx.log(tr('log.enemyUses', { name: u.name, sp: sp.pt }), 'ability');
         heal(ctx, wounded, rollDice(battle.rng, sp.dice).total);
         return true;
       }
@@ -147,7 +148,7 @@ function tryUseSpecial(battle, u) {
           .sort((a, b) => b.maxHp - a.maxHp)[0];
         if (!target) continue;
         markUsed();
-        ctx.log(`${u.name} usa ${sp.pt}!`, 'ability');
+        ctx.log(tr('log.enemyUses', { name: u.name, sp: sp.pt }), 'ability');
         addCondition(ctx, target, sp.condition, sp.duration ?? 3, u);
         return true;
       }
@@ -155,7 +156,7 @@ function tryUseSpecial(battle, u) {
         if (dHero > (sp.range ?? 4)) continue;
         if (hero.conditions.has(sp.condition)) continue;
         markUsed();
-        ctx.log(`${u.name} usa ${sp.pt} contra Frosty!`, 'ability');
+        ctx.log(tr('log.enemyUsesOn', { name: u.name, sp: sp.pt }), 'ability');
         if (!savingThrow(ctx, hero, sp.save ?? 'wis', sp.dc ?? 12)) {
           addCondition(ctx, hero, sp.condition, sp.duration ?? 2, u);
         }
@@ -167,7 +168,7 @@ function tryUseSpecial(battle, u) {
         const alliesHit = allies.filter((a) => chebyshev(a.pos, hero.pos) <= (sp.radius ?? 1)).length;
         if (u.int > 6 && alliesHit > 1) continue;
         markUsed();
-        ctx.log(`${u.name} usa ${sp.pt}!`, 'ability');
+        ctx.log(tr('log.enemyUses', { name: u.name, sp: sp.pt }), 'ability');
         ctx.event({ type: 'blast', x: hero.pos.x, y: hero.pos.y, radius: sp.radius ?? 1, element: sp.dtype });
         const targets = [hero, ...allies.filter((a) => chebyshev(a.pos, hero.pos) <= (sp.radius ?? 1))];
         for (const t of targets) {
@@ -191,7 +192,7 @@ function tryUseSpecial(battle, u) {
       case 'smite': {
         if (dHero > (sp.range ?? 1)) continue;
         markUsed();
-        ctx.log(`${u.name} usa ${sp.pt}!`, 'ability');
+        ctx.log(tr('log.enemyUses', { name: u.name, sp: sp.pt }), 'ability');
         resolveAttack(ctx, u, hero, { pt: sp.pt, dice: sp.dice, dtype: sp.dtype, range: sp.range, riders: sp.riders });
         battle.checkEnd();
         return true;

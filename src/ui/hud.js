@@ -1,11 +1,16 @@
 // HUD de batalha: cartão da heroína, ordem de turno, log, barra de ações,
-// inspetor de inimigos, preview de ataque e modos de mira.
+// inspetor de inimigos, preview de ataque e modos de mira. Totalmente i18n.
 
 import { conditionDef } from '../core/conditions.js';
 import { xpProgress } from '../data/frosty.js';
 import { POTIONS } from '../data/items.js';
 import { DAMAGE_ICONS } from '../core/damage.js';
 import { setHTML, esc } from './dom.js';
+import { t } from '../i18n.js';
+import {
+  condName, condDesc, abilityName, abilityDesc, potionName, potionDesc,
+  zoneName, damageTypeName, adjForm, adjDesc,
+} from '../i18n-data.js';
 
 const FAMILY_ICONS = {
   goblinoide: '👺', orc: '🗡️', 'morto-vivo': '💀', fera: '🐺', verme: '🕷️',
@@ -28,10 +33,10 @@ export class Hud {
         <div class="turn-order"></div>
       </div>
       <div class="hud-corner-tr">
-        <button class="btn-speed" title="Velocidade das animações">⏩ 1x</button>
-        <button class="btn-demo" title="Modo demonstração (Frosty joga sozinha)">🤖</button>
-        <button class="btn-mute" title="Som">🔊</button>
-        <button class="btn-help" title="Como jogar (H)">❓</button>
+        <button class="btn-speed"></button>
+        <button class="btn-demo">🤖</button>
+        <button class="btn-mute">🔊</button>
+        <button class="btn-help">❓</button>
       </div>
       <div class="hero-card">
         <div class="name"><span>❄️ Frosty</span><span class="level"></span></div>
@@ -46,7 +51,7 @@ export class Hud {
       <div class="action-dock">
         <div class="action-bar"></div>
         <div class="potion-bar"></div>
-        <button class="end-turn-btn">Encerrar Turno [T]</button>
+        <button class="end-turn-btn"></button>
       </div>
       <div class="attack-preview" style="display:none"></div>
     `);
@@ -84,6 +89,16 @@ export class Hud {
       this.$demoBtn.style.borderColor = on ? 'var(--gold)' : '';
       this.$demoBtn.textContent = on ? '🤖✓' : '🤖';
     };
+    this.applyStaticLabels(1);
+  }
+
+  applyStaticLabels(speed) {
+    this.el.querySelector('.btn-speed').textContent = `⏩ ${speed}x`;
+    this.el.querySelector('.btn-speed').title = t('hud.speedTitle');
+    this.$demoBtn.title = t('hud.demoTitle');
+    this.el.querySelector('.btn-mute').title = t('hud.soundTitle');
+    this.el.querySelector('.btn-help').title = t('hud.helpTitle');
+    this.$endTurn.textContent = t('hud.endTurn');
   }
 
   show() { this.el.style.display = ''; }
@@ -105,7 +120,7 @@ export class Hud {
     const zone = battle.zone;
     const endless = battle.isEndless;
 
-    setHTML(this.$info, `<span class="zone-name">${esc(zone?.pt ?? '')}</span> — ${endless ? '∞ Batalha' : 'Batalha'} ${battle.battleIndex}${endless ? '' : '/50'} · Round ${battle.round}`);
+    setHTML(this.$info, `<span class="zone-name">${esc(zone ? zoneName(zone) : '')}</span> — ${t(endless ? 'hud.battleEndless' : 'hud.battle')} ${battle.battleIndex}${endless ? '' : '/50'} · ${t('hud.round')} ${battle.round}`);
 
     // ordem de turno
     this.$turns.replaceChildren();
@@ -114,14 +129,14 @@ export class Hud {
       const u = order[i];
       const chip = document.createElement('div');
       chip.className = `turn-chip ${u.side === 'enemy' ? 'enemy' : ''} ${!u.alive ? 'dead' : ''} ${i === battle.activeIdx ? 'active' : ''}`;
-      chip.title = `${u.name} — ${u.hp}/${u.maxHp} PV`;
+      chip.title = t('hud.hpOf', { name: u.name, hp: u.hp, max: u.maxHp });
       const icon = u.kind === 'hero' ? '❄️' : familyIcon(u.family);
       setHTML(chip, `<span>${icon}</span><div class="mini-hp"><div style="width:${Math.max(0, u.hp / u.maxHp * 100)}%"></div></div>`);
       this.$turns.appendChild(chip);
     }
 
     // heroína
-    this.$heroLevel.textContent = `Nv ${heroState.level}`;
+    this.$heroLevel.textContent = t('hud.level', { n: heroState.level });
     const frac = Math.max(0, hero.hp / hero.maxHp);
     this.$hpBar.style.width = `${frac * 100}%`;
     this.$hpBar.classList.toggle('low', frac < 0.35);
@@ -134,11 +149,11 @@ export class Hud {
       const chip = document.createElement('span');
       chip.className = 'cond-chip';
       chip.style.borderColor = def.color;
-      chip.textContent = `${def.icon} ${def.pt} (${data.duration})`;
-      chip.title = def.desc;
+      chip.textContent = `${def.icon} ${condName(def)} (${data.duration})`;
+      chip.title = condDesc(def);
       this.$conds.appendChild(chip);
     }
-    this.$gold.textContent = `💰 ${heroState.gold} ouro · 👟 ${hero.movementLeft ?? 0} mov · ⚔️ ${hero.actionsLeft ?? 0} ação`;
+    this.$gold.textContent = t('hud.gold', { gold: heroState.gold, mov: hero.movementLeft ?? 0, act: hero.actionsLeft ?? 0 });
 
     // habilidades
     this.$abilityBar.replaceChildren();
@@ -157,8 +172,8 @@ export class Hud {
         <span class="hotkey">${i + 1}</span>
         ${cd ? `<span class="cd-badge">${cd}</span>` : usesLeft !== null ? `<span class="cd-badge">${usesLeft}×</span>` : ''}
         <span>${a.icon}</span>
-        <span class="ab-label">${esc(a.pt)}</span>`);
-      btn.title = `${a.pt} — ${a.desc}`;
+        <span class="ab-label">${esc(abilityName(a))}</span>`);
+      btn.title = `${abilityName(a)} — ${abilityDesc(a)}`;
       btn.onclick = () => this.cb.onAbilitySelect(a);
       this.$abilityBar.appendChild(btn);
     });
@@ -172,11 +187,12 @@ export class Hud {
       btn.className = 'potion-btn';
       btn.disabled = busy || demoMode || !battle.isPlayerTurn() || battle.potionUsedThisTurn;
       setHTML(btn, `<span>${p.icon}</span><span class="count">${count}</span>`);
-      btn.title = `${p.pt} — ${p.desc} (1 por turno, ação livre)`;
+      btn.title = t('hud.potionTip', { name: potionName(p), desc: potionDesc(p) });
       btn.onclick = () => this.cb.onPotion(p.id);
       this.$potionBar.appendChild(btn);
     }
 
+    this.$endTurn.textContent = t('hud.endTurn');
     this.$endTurn.disabled = busy || demoMode || !battle.isPlayerTurn();
   }
 
@@ -202,26 +218,26 @@ export class Hud {
       return;
     }
     const adjHtml = (unit.adjectives ?? []).map((a) =>
-      `<div class="e-adj"><b>${esc(unit.gender === 'f' ? a.f : a.m)}</b> — ${esc(a.desc)}</div>`
+      `<div class="e-adj"><b>${esc(adjForm(a, unit.gender))}</b> — ${esc(adjDesc(a))}</div>`
     ).join('');
     const tags = [];
-    for (const r of unit.resistances ?? []) tags.push(`<span class="tag resist">${DAMAGE_ICONS[r] ?? ''} resiste ${esc(r)}</span>`);
-    for (const v of unit.vulnerabilities ?? []) tags.push(`<span class="tag vuln">${DAMAGE_ICONS[v] ?? ''} vulnerável ${esc(v)}</span>`);
-    for (const i of unit.immunities ?? []) tags.push(`<span class="tag immune">${DAMAGE_ICONS[i] ?? ''} imune ${esc(i)}</span>`);
+    for (const r of unit.resistances ?? []) tags.push(`<span class="tag resist">${DAMAGE_ICONS[r] ?? ''} ${t('hud.resists', { t: damageTypeName(r) })}</span>`);
+    for (const v of unit.vulnerabilities ?? []) tags.push(`<span class="tag vuln">${DAMAGE_ICONS[v] ?? ''} ${t('hud.vulnerable', { t: damageTypeName(v) })}</span>`);
+    for (const i of unit.immunities ?? []) tags.push(`<span class="tag immune">${DAMAGE_ICONS[i] ?? ''} ${t('hud.immune', { t: damageTypeName(i) })}</span>`);
     const conds = [...unit.conditions.keys()].map((id) => {
       const d = conditionDef(id);
-      return `<span class="cond-chip" style="border-color:${d.color}">${d.icon} ${d.pt}</span>`;
+      return `<span class="cond-chip" style="border-color:${d.color}">${d.icon} ${condName(d)}</span>`;
     }).join(' ');
     setHTML(this.$inspect, `
       <div class="e-name">${familyIcon(unit.family)} ${esc(unit.name)}${unit.isBoss ? ' 👑' : ''}</div>
       <div class="e-stats">
         <span>❤️ ${unit.hp}/${unit.maxHp}</span>
-        <span>🛡️ CA ${unit.ac}</span>
+        <span>🛡️ ${t('hud.ac', { n: unit.ac })}</span>
         <span>👟 ${unit.speed}</span>
         <span>T${unit.tier}</span>
       </div>
       ${conds ? `<div style="margin:4px 0">${conds}</div>` : ''}
-      ${adjHtml || '<div style="font-size:0.8rem;color:var(--text-dim)">Espécime comum, sem peculiaridades.</div>'}
+      ${adjHtml || `<div style="font-size:0.8rem;color:var(--text-dim)">${t('hud.commonSpecimen')}</div>`}
       <div class="e-tags">${tags.join('')}</div>
     `);
     this.$inspect.classList.add('visible');

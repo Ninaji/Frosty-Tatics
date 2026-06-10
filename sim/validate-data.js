@@ -142,6 +142,64 @@ for (const p of Object.values(POTIONS)) {
 }
 ok('Habilidades e itens válidos');
 
+// ---------- i18n: completude EN + paridade de dicionários ----------
+console.log('\nInternacionalização (EN):');
+const { PT, EN } = await import('../src/i18n.js');
+const i18nEn = await import('../src/data/i18n-en.js');
+
+const ptKeys = new Set(Object.keys(PT));
+const enKeys = new Set(Object.keys(EN));
+for (const k of ptKeys) if (!enKeys.has(k)) err(`chave de UI sem EN: ${k}`);
+for (const k of enKeys) if (!ptKeys.has(k)) err(`chave de UI sem PT: ${k}`);
+ok(`Dicionários de UI com paridade (${ptKeys.size} chaves)`);
+
+for (const e of ENEMIES) {
+  const tr = i18nEn.EN_ENEMIES[e.id];
+  if (!tr?.name) { err(`inimigo sem tradução EN: ${e.id}`); continue; }
+  if ((tr.attacks?.length ?? 0) < e.attacks.length) err(`inimigo ${e.id}: ataques EN incompletos`);
+  if ((e.specials?.length ?? 0) > (tr.specials?.length ?? 0)) err(`inimigo ${e.id}: specials EN incompletos`);
+}
+ok(`${ENEMIES.length} inimigos com nome/ataques/specials em EN`);
+
+for (const a of ADJECTIVES) {
+  const tr = i18nEn.EN_ADJECTIVES[a.id];
+  if (!tr?.name) err(`adjetivo sem tradução EN: ${a.id}`);
+  else if (!tr.desc) err(`adjetivo sem descrição EN: ${a.id}`);
+}
+const enAdjNames = Object.values(i18nEn.EN_ADJECTIVES).map((x) => x.name);
+const dupEn = [...new Set(enAdjNames.filter((n, i) => enAdjNames.indexOf(n) !== i))];
+if (dupEn.length) err(`nomes EN de adjetivos duplicados: ${dupEn.join(', ')}`);
+ok(`${ADJECTIVES.length} adjetivos com nome+descrição EN únicos`);
+
+for (const a of FROSTY_ABILITIES) if (!i18nEn.EN_ABILITIES[a.id]?.name || !i18nEn.EN_ABILITIES[a.id]?.desc) err(`habilidade sem EN: ${a.id}`);
+for (const p of FROSTY_PASSIVES) if (!i18nEn.EN_PASSIVES[p.id]?.name || !i18nEn.EN_PASSIVES[p.id]?.desc) err(`passiva sem EN: ${p.id}`);
+for (const z of ZONES) if (!i18nEn.EN_ZONES[z.id]?.name || !i18nEn.EN_ZONES[z.id]?.intro) err(`zona sem EN: ${z.id}`);
+for (const p of Object.values(POTIONS)) if (!i18nEn.EN_POTIONS[p.id]?.name) err(`poção sem EN: ${p.id}`);
+for (const u of Object.values(UPGRADES)) if (!i18nEn.EN_UPGRADES[u.id]?.name) err(`melhoria sem EN: ${u.id}`);
+const { CONDITIONS: CONDS } = await import('../src/core/conditions.js');
+for (const c of Object.values(CONDS)) if (!c.en || !c.descEn) err(`condição sem EN: ${c.id}`);
+for (const d of DAMAGE_TYPES) {
+  if (!i18nEn.EN_DAMAGE[d]) err(`tipo de dano sem EN: ${d}`);
+  if (!i18nEn.PT_DAMAGE[d]) err(`tipo de dano sem display PT: ${d}`);
+}
+ok('Habilidades, passivas, zonas, itens, condições e tipos de dano em EN');
+
+// amostra de nomes EN compostos
+{
+  const { setLocale, getLocale } = await import('../src/i18n.js');
+  const { composeLocalizedName } = await import('../src/i18n-data.js');
+  const prev = getLocale();
+  setLocale('en');
+  const samples = [
+    [ENEMY_BY_ID.get('goblin'), [ADJECTIVES.find((a) => a.id === 'flamejante'), ADJECTIVES.find((a) => a.id === 'gigante')]],
+    [ENEMY_BY_ID.get('aranha'), [ADJECTIVES.find((a) => a.id === 'venenoso')]],
+    [ENEMY_BY_ID.get('mumia'), [ADJECTIVES.find((a) => a.id === 'anciao')]],
+  ];
+  console.log('  Amostras EN:');
+  for (const [base, adjs] of samples) console.log(`    → ${composeLocalizedName(base, adjs)}`);
+  setLocale(prev);
+}
+
 // ---------- combinações nome PT ----------
 console.log('\nAmostras de nomes gerados:');
 import('../src/core/unit.js').then(({ composeName }) => {

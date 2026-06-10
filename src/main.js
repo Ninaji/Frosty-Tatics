@@ -18,6 +18,8 @@ import { applyAsi, recomputeHero } from './data/frosty.js';
 import { POTIONS, UPGRADES } from './data/items.js';
 import { TOTAL_BATTLES } from './data/campaign.js';
 import { chebyshev, lineTiles } from './game/grid.js';
+import { t, getLocale, setLocale, hasStoredLocale } from './i18n.js';
+import { abilityName } from './i18n-data.js';
 
 const params = new URLSearchParams(location.search);
 
@@ -59,9 +61,19 @@ class App {
 
     this.bindInput();
     this.sceneMgr.start();
+    this.applyDocumentTitle();
     if (params.has('model')) {
       this.inspectModel(params.get('model') || 'frosty');
+    } else if (!hasStoredLocale() && !params.has('lang') && !this.autoAdvance) {
+      // primeira visita: escolha de idioma antes de tudo
+      this.setupMenuDecor();
+      this.screens.languagePicker((lang) => {
+        setLocale(lang);
+        this.applyDocumentTitle();
+        this.showMenu();
+      });
     } else {
+      if (params.has('lang')) setLocale(params.get('lang'));
       this.showMenu();
     }
     window.__app = this; // exposto para depuração e testes automatizados
@@ -155,7 +167,20 @@ class App {
         this.screens.bestiary(data, () => this.screens.closeModal());
       },
       onHelp: () => this.screens.help(() => this.screens.closeModal()),
+      onLanguage: () => {
+        setLocale(getLocale() === 'pt' ? 'en' : 'pt');
+        this.applyDocumentTitle();
+        if (this.game) recomputeHero(this.game.hero);
+        this.hud.applyStaticLabels(this.speed);
+        this.showMenu(); // re-renderiza no novo idioma
+      },
     });
+  }
+
+  applyDocumentTitle() {
+    document.title = getLocale() === 'en'
+      ? 'Frosty Tactics — The Runic Blade'
+      : 'Frosty Tactics — A Lâmina Rúnica';
   }
 
   seedFromParams() {
@@ -450,9 +475,9 @@ class App {
 
     if (a.kind === 'attack' || a.kind === 'charge') {
       const range = a.kind === 'charge' ? a.range + 1 : (a.range ?? 1);
-      const targets = this.battle.opponentsOf(hero).filter((t) => chebyshev(hero.pos, t.pos) <= range);
-      this.tilemap.highlight(targets.map((t) => t.pos), 'attack');
-      this.hud.setHint(`${a.icon} ${a.pt} — clique no alvo (Esc cancela)`);
+      const targets = this.battle.opponentsOf(hero).filter((u) => chebyshev(hero.pos, u.pos) <= range);
+      this.tilemap.highlight(targets.map((u) => u.pos), 'attack');
+      this.hud.setHint(t('hud.hintTarget', { icon: a.icon, name: abilityName(a) }));
     } else if (a.kind === 'move') {
       const range = this.game.hero.wingRange ?? a.range;
       const occ = this.battle.occupiedMap();
@@ -466,14 +491,14 @@ class App {
         }
       }
       this.tilemap.highlight(cells, 'aoe');
-      this.hud.setHint(`${a.icon} ${a.pt} — clique na casa de destino (Esc cancela)`);
+      this.hud.setHint(t('hud.hintTile', { icon: a.icon, name: abilityName(a) }));
     } else if (a.kind === 'line') {
       const cells = [];
       for (const dir of [{ x: 1, y: 0 }, { x: -1, y: 0 }, { x: 0, y: 1 }, { x: 0, y: -1 }]) {
         cells.push(...lineTiles(this.battle.grid, hero.pos, dir, a.range));
       }
       this.tilemap.highlight(cells, 'aoe');
-      this.hud.setHint(`${a.icon} ${a.pt} — clique numa direção (Esc cancela)`);
+      this.hud.setHint(t('hud.hintLine', { icon: a.icon, name: abilityName(a) }));
     } else if (a.kind === 'aoe') {
       const cells = this.battle.opponentsOf(hero)
         .filter((t) => chebyshev(hero.pos, t.pos) <= a.radius).map((t) => t.pos);
@@ -503,9 +528,12 @@ class App {
             const range = a?.kind === 'charge' ? a.range + 1 : (a?.range ?? this.battle.attackRange(this.battle.hero, this.battle.hero.attacks[0]));
             if (chebyshev(this.battle.hero.pos, unit.pos) <= range) {
               const pv = this.battle.previewFor(this.battle.hero, unit, this.battle.hero.attacks[0]);
-              const advTxt = pv.adv > 0 ? ' · vantagem' : pv.adv < 0 ? ' · desvantagem' : '';
+              const advTxt = pv.adv > 0 ? t('hud.advantage') : pv.adv < 0 ? t('hud.disadvantage') : '';
               this.hud.showPreview(e.clientX, e.clientY,
-                `<span class="hitchance">${Math.round(pv.pHit * 100)}%</span> de acertar · ~${pv.avgDamage} dano${advTxt}`);
+                t('hud.hitChance', {
+                  p: `<span class="hitchance">${Math.round(pv.pHit * 100)}</span>`,
+                  d: pv.avgDamage, adv: advTxt,
+                }));
             } else this.hud.hidePreview();
           }
         }

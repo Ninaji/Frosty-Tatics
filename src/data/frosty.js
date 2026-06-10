@@ -2,6 +2,7 @@
 
 import { mod, xpForLevel, levelForXp } from '../core/stats.js';
 import { passivesForLevel } from './abilities.js';
+import { weaponName } from '../i18n-data.js';
 
 export function newHeroState() {
   return {
@@ -43,7 +44,7 @@ export function recomputeHero(h) {
   // a lâmina desperta junto com a heroína
   const weaponDice = h.level >= 20 ? '3d10' : h.level >= 12 ? '2d10' : '2d8';
   h.weapon = {
-    pt: 'Geada Eterna', dice: weaponDice, dtype: 'cortante', range: 1,
+    pt: weaponName(), dice: weaponDice, dtype: 'cortante', range: 1,
     extraDamage,
   };
 
