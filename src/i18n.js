@@ -54,6 +54,24 @@ export const PT = {
   'settings.music': '🎵 Música',
   'settings.sfx': '⚔️ Golpes & Efeitos',
 
+  // jukebox
+  'jukebox.title': '💿 Trilha Sonora',
+  'jukebox.open': 'Trilha sonora (todas as músicas)',
+  'jukebox.part': 'Parte {p}/5',
+  'jukebox.zoneTheme': 'Tema da zona',
+  'jukebox.bossTheme': 'Tema do chefe',
+  'jukebox.stop': '⏹️ Parar',
+  'track.zone1': 'O Chamado de Frosty',
+  'track.zone1boss': 'A Horda do Rei Goblin',
+  'track.zone2': 'Sussurros de Velgar',
+  'track.zone2boss': 'A Gargalhada da Bruxa',
+  'track.zone3': 'Lamento do Pântano',
+  'track.zone3boss': 'Toccata do Lich',
+  'track.zone4': 'Picos do Crepúsculo',
+  'track.zone4boss': 'Fúria Glacial',
+  'track.zone5': 'O Pulso do Vazio',
+  'track.zone5boss': 'Vorthrax, o Finale',
+
   // seletor de idioma
   'lang.pick': 'Escolha seu idioma · Choose your language',
 
@@ -213,6 +231,24 @@ export const EN = {
   'menu.language': '🌐 Português',
   'settings.music': '🎵 Music',
   'settings.sfx': '⚔️ Hits & SFX',
+
+  // jukebox
+  'jukebox.title': '💿 Soundtrack',
+  'jukebox.open': 'Soundtrack (all tracks)',
+  'jukebox.part': 'Part {p}/5',
+  'jukebox.zoneTheme': 'Zone theme',
+  'jukebox.bossTheme': 'Boss theme',
+  'jukebox.stop': '⏹️ Stop',
+  'track.zone1': "Frosty's Call",
+  'track.zone1boss': 'Horde of the Goblin King',
+  'track.zone2': 'Whispers of Velgar',
+  'track.zone2boss': "The Hag's Cackle",
+  'track.zone3': 'Mire Lament',
+  'track.zone3boss': "Lich's Toccata",
+  'track.zone4': 'Twilight Peaks',
+  'track.zone4boss': 'Glacial Fury',
+  'track.zone5': 'Pulse of the Void',
+  'track.zone5boss': 'Vorthrax, the Finale',
 
   'lang.pick': 'Choose your language · Escolha seu idioma',
 

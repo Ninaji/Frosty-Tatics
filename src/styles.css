@@ -112,6 +112,43 @@ button.danger { border-color: rgba(255, 100, 100, 0.5); }
   border: 2px solid #fff;
 }
 
+/* jukebox: disco no canto inferior direito do menu */
+.jukebox-btn {
+  position: absolute;
+  right: 26px; bottom: 26px;
+  width: 64px; height: 64px;
+  border-radius: 50%;
+  font-size: 2rem;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-strong);
+  box-shadow: 0 6px 22px rgba(0,0,0,0.45), 0 0 18px rgba(122, 216, 255, 0.15);
+  padding: 0;
+}
+.jukebox-btn:hover { transform: scale(1.08) !important; }
+.jukebox-btn.spinning { animation: disc-spin 2.4s linear infinite; }
+@keyframes disc-spin { from { rotate: 0deg; } to { rotate: 360deg; } }
+
+.jukebox-list { display: flex; flex-direction: column; gap: 6px; min-width: 380px; }
+.jukebox-row {
+  display: flex; align-items: center; gap: 12px;
+  background: var(--bg-panel-light);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 12px;
+}
+.jukebox-row.playing {
+  border-color: var(--gold);
+  box-shadow: 0 0 12px rgba(255, 210, 74, 0.25);
+  background: rgba(60, 70, 40, 0.35);
+}
+.jukebox-row .jb-play { width: 42px; height: 42px; font-size: 1.1rem; padding: 0; border-radius: 50%; }
+.jukebox-row .jb-info { flex: 1; }
+.jukebox-row .jb-title { font-weight: 600; font-size: 0.95rem; }
+.jukebox-row.playing .jb-title { color: var(--gold); }
+.jukebox-row .jb-sub { font-size: 0.76rem; color: var(--text-dim); }
+.jukebox-row .jb-part { font-size: 0.8rem; color: var(--accent-ice); min-width: 76px; text-align: right; }
+
 .screen h2 { font-size: 1.8rem; color: var(--accent-ice); }
 .screen .panel {
   background: var(--bg-panel);

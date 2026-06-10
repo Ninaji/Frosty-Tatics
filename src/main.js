@@ -9,7 +9,7 @@ import { buildFrosty, buildEnemyMesh } from './render/characters.js';
 import { ENEMY_BY_ID } from './data/enemies.js';
 import { Sfx } from './audio/sfx.js';
 import { MusicEngine } from './audio/music.js';
-import { trackForBattle, MENU_TRACK } from './audio/tracks.js';
+import { trackForBattle, MENU_TRACK, TRACKS } from './audio/tracks.js';
 import { Hud } from './ui/hud.js';
 import { Screens } from './ui/screens.js';
 import { div, setHTML } from './ui/dom.js';
@@ -194,6 +194,34 @@ class App {
         setMusic: (v) => this.sfx.setMusicVolume(v),
         setSfx: (v) => this.sfx.setSfxVolume(v),
         testSfx: () => { this.sfx.ensure(); this.sfx.hit(); },
+      },
+      onJukebox: (btn) => this.openJukebox(btn),
+    });
+    // disco gira se já há música tocando
+    this.uiRoot.querySelector('.jukebox-btn')?.classList.toggle('spinning', !!this.music.state);
+  }
+
+  openJukebox(btn) {
+    const ids = Object.keys(TRACKS);
+    this.screens.jukebox(ids, {
+      titleOf: (id) => t(`track.${id}`),
+      subtitleOf: (id) => {
+        const tr = TRACKS[id];
+        const kind = id.endsWith('boss') ? t('jukebox.bossTheme') : t('jukebox.zoneTheme');
+        return `${kind} · ${tr.bpm} BPM`;
+      },
+      isPlaying: (id) => this.music.state?.trackId === id,
+      play: (id) => { this.sfx.ensure(); this.music.play(id); btn?.classList.add('spinning'); },
+      stop: () => { this.music.stop(); btn?.classList.remove('spinning'); },
+      bindPartChange: (cb) => {
+        this.music.onPartChange = cb;
+        return () => { this.music.onPartChange = null; };
+      },
+      onClose: () => {
+        this.screens.closeModal();
+        // sem nada tocando? volta ao Tema Principal do menu
+        if (!this.music.state) this.playMusic(MENU_TRACK);
+        this.uiRoot.querySelector('.jukebox-btn')?.classList.toggle('spinning', !!this.music.state);
       },
     });
   }
@@ -537,6 +565,7 @@ class App {
       if (this._pendingTrack) {
         this.music.play(this._pendingTrack);
         this._pendingTrack = null;
+        document.querySelector('.jukebox-btn')?.classList.add('spinning');
       }
       window.removeEventListener('pointerdown', unlockAudio, true);
       window.removeEventListener('keydown', unlockAudio, true);

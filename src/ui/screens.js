@@ -77,8 +77,66 @@ export class Screens {
     return this.show(el);
   }
 
+  // ---------- JUKEBOX (todas as músicas) ----------
+  jukebox(trackIds, { titleOf, subtitleOf, isPlaying, play, stop, bindPartChange, onClose }) {
+    const inner = div('');
+    setHTML(inner, `
+      <h3>${esc(t('jukebox.title'))}</h3>
+      <div class="jukebox-list"></div>
+      <div class="modal-actions">
+        <button class="stop-all">${esc(t('jukebox.stop'))}</button>
+        <button class="primary close">${esc(t('bestiary.close'))}</button>
+      </div>
+    `);
+    const list = inner.querySelector('.jukebox-list');
+    const rows = new Map();
+
+    const render = () => {
+      for (const [id, row] of rows) {
+        const playing = isPlaying(id);
+        row.el.classList.toggle('playing', playing);
+        row.$btn.textContent = playing ? '⏸️' : '▶️';
+        if (!playing) row.$part.textContent = '';
+      }
+    };
+
+    for (const id of trackIds) {
+      const row = div('jukebox-row');
+      setHTML(row, `
+        <button class="jb-play">▶️</button>
+        <div class="jb-info">
+          <div class="jb-title">${esc(titleOf(id))}</div>
+          <div class="jb-sub">${esc(subtitleOf(id))}</div>
+        </div>
+        <span class="jb-part"></span>
+      `);
+      const $btn = row.querySelector('.jb-play');
+      const $part = row.querySelector('.jb-part');
+      $btn.onclick = () => {
+        if (isPlaying(id)) stop();
+        else play(id);
+        render();
+      };
+      rows.set(id, { el: row, $btn, $part });
+      list.appendChild(row);
+    }
+    render();
+
+    // badge de parte ao vivo (parte atual /5)
+    const unbind = bindPartChange((trackId, partIdx) => {
+      const row = rows.get(trackId);
+      if (row) row.$part.textContent = t('jukebox.part', { p: partIdx + 1 });
+      render();
+    });
+
+    inner.querySelector('.stop-all').onclick = () => { stop(); render(); };
+    inner.querySelector('.close').onclick = () => { unbind(); onClose(); };
+    const backdrop = this.openModal(inner);
+    return backdrop;
+  }
+
   // ---------- MENU PRINCIPAL ----------
-  mainMenu({ hasSave, campaignComplete, onNew, onContinue, onBestiary, onHelp, onLanguage, volumes }) {
+  mainMenu({ hasSave, campaignComplete, onNew, onContinue, onBestiary, onHelp, onLanguage, volumes, onJukebox }) {
     const el = div('screen transparent fade-in');
     setHTML(el, `
       <div class="game-title">FROSTY TACTICS</div>
@@ -117,6 +175,16 @@ export class Screens {
     mk(t('menu.bestiary'), onBestiary);
     mk(t('menu.help'), onHelp);
     mk(t('menu.language'), onLanguage);
+
+    // botão jukebox: disco no canto inferior direito
+    if (onJukebox) {
+      const jb = document.createElement('button');
+      jb.className = 'jukebox-btn';
+      jb.title = t('jukebox.open');
+      jb.textContent = '💿';
+      jb.onclick = () => onJukebox(jb);
+      el.appendChild(jb);
+    }
 
     // sliders de volume (aplicação ao vivo + persistência)
     if (volumes) {

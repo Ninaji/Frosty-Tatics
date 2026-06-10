@@ -26,14 +26,18 @@ export class MusicEngine {
   ensureGraph() {
     this.sfx.ensure();
     if (!this._bus) {
-      // barramento da música: filtro de aquecimento + eco discreto
+      // barramento da música: aquecimento + reforço de graves + eco discreto
       const ctx = this.ctx;
       this._bus = ctx.createGain();
       this._bus.gain.value = 1;
       const warm = ctx.createBiquadFilter();
       warm.type = 'lowpass';
       warm.frequency.value = 9000;
-      this._bus.connect(warm).connect(this.sfx.musicGain);
+      const shelf = ctx.createBiquadFilter();
+      shelf.type = 'lowshelf';
+      shelf.frequency.value = 150;
+      shelf.gain.value = 5; // +5dB de peso nas batidas graves
+      this._bus.connect(warm).connect(shelf).connect(this.sfx.musicGain);
 
       const delay = ctx.createDelay(1.2);
       delay.delayTime.value = 0.31;
@@ -188,7 +192,7 @@ export class MusicEngine {
         const lp = this.ctx.createBiquadFilter();
         lp.type = 'lowpass';
         lp.frequency.value = 900;
-        const g = this.env(t, dur * 1.05, 0.028 * vol, dur * 0.25, dur * 0.3);
+        const g = this.env(t, dur * 1.05, 0.042 * vol, dur * 0.25, dur * 0.3);
         o.connect(lp).connect(g).connect(this._bus);
         o.start(t);
         o.stop(t + dur * 1.1);
@@ -204,10 +208,18 @@ export class MusicEngine {
     lp.type = 'lowpass';
     lp.frequency.setValueAtTime(700, t);
     lp.frequency.exponentialRampToValueAtTime(220, t + dur);
-    const g = this.env(t, dur, 0.16 * vol, 0.008);
+    const g = this.env(t, dur, 0.3 * vol, 0.008);
     o.connect(lp).connect(g).connect(this._bus);
     o.start(t);
     o.stop(t + dur + 0.02);
+    // camada SUB (uma oitava abaixo, senoide pura): o peso do baixo
+    const sub = this.ctx.createOscillator();
+    sub.type = 'sine';
+    sub.frequency.value = f / 2;
+    const sg = this.env(t, dur, 0.22 * vol, 0.01);
+    sub.connect(sg).connect(this._bus);
+    sub.start(t);
+    sub.stop(t + dur + 0.02);
   }
 
   bassPattern(t, track, part, chordDeg, s, vol) {
@@ -249,7 +261,7 @@ export class MusicEngine {
     const lp = this.ctx.createBiquadFilter();
     lp.type = 'lowpass';
     lp.frequency.value = 3200;
-    const g = this.env(t, dur, 0.075 * vol, 0.02, Math.min(0.25, dur * 0.4));
+    const g = this.env(t, dur, 0.11 * vol, 0.02, Math.min(0.25, dur * 0.4));
     o.connect(lp).connect(g).connect(this._echoIn);
     o.start(t); lfo.start(t);
     o.stop(t + dur + 0.05); lfo.stop(t + dur + 0.05);
@@ -259,7 +271,7 @@ export class MusicEngine {
     const o = this.ctx.createOscillator();
     o.type = 'triangle';
     o.frequency.value = f;
-    const g = this.env(t, 0.22, 0.06 * vol, 0.004, 0.18);
+    const g = this.env(t, 0.22, 0.085 * vol, 0.004, 0.18);
     o.connect(g).connect(this._echoIn);
     o.start(t);
     o.stop(t + 0.3);
@@ -283,12 +295,30 @@ export class MusicEngine {
 
   // bateria
   kick(t, vol) {
+    // corpo com queda de pitch
     const o = this.ctx.createOscillator();
-    o.frequency.setValueAtTime(120, t);
-    o.frequency.exponentialRampToValueAtTime(38, t + 0.1);
-    const g = this.env(t, 0.16, 0.5 * vol, 0.002, 0.1);
+    o.frequency.setValueAtTime(150, t);
+    o.frequency.exponentialRampToValueAtTime(40, t + 0.12);
+    const g = this.env(t, 0.2, 0.9 * vol, 0.002, 0.13);
     o.connect(g).connect(this._bus);
-    o.start(t); o.stop(t + 0.2);
+    o.start(t); o.stop(t + 0.25);
+    // sub grave (peso no peito)
+    const sub = this.ctx.createOscillator();
+    sub.type = 'sine';
+    sub.frequency.setValueAtTime(60, t);
+    sub.frequency.exponentialRampToValueAtTime(34, t + 0.18);
+    const sg = this.env(t, 0.26, 0.7 * vol, 0.003, 0.18);
+    sub.connect(sg).connect(this._bus);
+    sub.start(t); sub.stop(t + 0.3);
+    // clique de ataque (definição)
+    const click = this.ctx.createBufferSource();
+    click.buffer = this.noiseBuf(0.02);
+    const hp = this.ctx.createBiquadFilter();
+    hp.type = 'highpass';
+    hp.frequency.value = 2500;
+    const cg = this.env(t, 0.02, 0.25 * vol, 0.001, 0.015);
+    click.connect(hp).connect(cg).connect(this._bus);
+    click.start(t);
   }
 
   snare(t, vol) {
@@ -299,9 +329,16 @@ export class MusicEngine {
     const bp = this.ctx.createBiquadFilter();
     bp.type = 'bandpass';
     bp.frequency.value = 1900;
-    const g = this.env(t, dur, 0.22 * vol, 0.001, 0.1);
+    const g = this.env(t, dur, 0.32 * vol, 0.001, 0.1);
     src.connect(bp).connect(g).connect(this._echoIn);
     src.start(t);
+    // corpo da caixa
+    const o = this.ctx.createOscillator();
+    o.frequency.setValueAtTime(220, t);
+    o.frequency.exponentialRampToValueAtTime(140, t + 0.08);
+    const og = this.env(t, 0.09, 0.18 * vol, 0.001, 0.07);
+    o.connect(og).connect(this._bus);
+    o.start(t); o.stop(t + 0.12);
   }
 
   hat(t, vol, open = false) {
@@ -311,7 +348,7 @@ export class MusicEngine {
     const hp = this.ctx.createBiquadFilter();
     hp.type = 'highpass';
     hp.frequency.value = 7500;
-    const g = this.env(t, dur, 0.07 * vol, 0.001, dur * 0.8);
+    const g = this.env(t, dur, 0.09 * vol, 0.001, dur * 0.8);
     src.connect(hp).connect(g).connect(this._bus);
     src.start(t);
   }
@@ -319,10 +356,18 @@ export class MusicEngine {
   tom(t, vol, low = false) {
     const o = this.ctx.createOscillator();
     o.frequency.setValueAtTime(low ? 110 : 170, t);
-    o.frequency.exponentialRampToValueAtTime(low ? 55 : 90, t + 0.18);
-    const g = this.env(t, 0.3, 0.3 * vol, 0.002, 0.2);
+    o.frequency.exponentialRampToValueAtTime(low ? 50 : 85, t + 0.2);
+    const g = this.env(t, 0.34, 0.55 * vol, 0.002, 0.24);
     o.connect(g).connect(this._bus);
-    o.start(t); o.stop(t + 0.35);
+    o.start(t); o.stop(t + 0.4);
+    // sub do tambor de guerra
+    const sub = this.ctx.createOscillator();
+    sub.type = 'sine';
+    sub.frequency.setValueAtTime(low ? 65 : 95, t);
+    sub.frequency.exponentialRampToValueAtTime(low ? 38 : 55, t + 0.22);
+    const sg = this.env(t, 0.3, 0.4 * vol, 0.003, 0.2);
+    sub.connect(sg).connect(this._bus);
+    sub.start(t); sub.stop(t + 0.35);
   }
 
   crash(t, vol) {
@@ -332,7 +377,7 @@ export class MusicEngine {
     const hp = this.ctx.createBiquadFilter();
     hp.type = 'highpass';
     hp.frequency.value = 5200;
-    const g = this.env(t, dur, 0.12 * vol, 0.002, dur * 0.9);
+    const g = this.env(t, dur, 0.16 * vol, 0.002, dur * 0.9);
     src.connect(hp).connect(g).connect(this._bus);
     src.start(t);
   }

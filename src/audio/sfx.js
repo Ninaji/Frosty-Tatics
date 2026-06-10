@@ -27,9 +27,17 @@ export class Sfx {
   ensure() {
     if (!this.ctx) {
       this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+      // compressor master: deixa o mix MUITO mais alto sem distorcer
+      this.comp = this.ctx.createDynamicsCompressor();
+      this.comp.threshold.value = -18;
+      this.comp.knee.value = 12;
+      this.comp.ratio.value = 4;
+      this.comp.attack.value = 0.004;
+      this.comp.release.value = 0.18;
+      this.comp.connect(this.ctx.destination);
       this.master = this.ctx.createGain();
       this.master.gain.value = this.muted ? 0 : 1;
-      this.master.connect(this.ctx.destination);
+      this.master.connect(this.comp);
       this.sfxGain = this.ctx.createGain();
       this.sfxGain.connect(this.master);
       this.musicGain = this.ctx.createGain();
@@ -42,9 +50,9 @@ export class Sfx {
 
   applyVolumes() {
     if (!this.ctx) return;
-    // curvas: efeitos até 0.55, música até 0.34 (equilíbrio mix)
-    this.sfxGain.gain.value = (this.volSfx / 100) * 0.55;
-    this.musicGain.gain.value = (this.volMusic / 100) * 0.34;
+    // curvas quentes (o compressor master segura os picos)
+    this.sfxGain.gain.value = (this.volSfx / 100) * 0.8;
+    this.musicGain.gain.value = (this.volMusic / 100) * 0.9;
   }
 
   setMusicVolume(v) {
