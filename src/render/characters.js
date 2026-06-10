@@ -2,6 +2,7 @@
 // de corpo dos 115 inimigos, coloridos e escalados pelos dados da unidade.
 
 import * as THREE from 'three';
+import { BOSS_BUILDERS } from './bosses.js';
 
 const matte = (color, opts = {}) => new THREE.MeshStandardMaterial({ color, roughness: 0.85, metalness: 0.05, ...opts });
 const metal = (color, opts = {}) => new THREE.MeshStandardMaterial({ color, roughness: 0.35, metalness: 0.85, ...opts });
@@ -448,15 +449,30 @@ const BUILDERS = {
 
 export function buildEnemyMesh(unit) {
   const v = unit.visual;
-  const builder = BUILDERS[v.body] ?? BUILDERS.biped;
-  let color = v.color, accent = v.accent ?? '#333333';
-  // tinta do adjetivo mistura na cor base
-  if (v.tint) {
-    const c1 = new THREE.Color(color), c2 = new THREE.Color(v.tint);
-    c1.lerp(c2, 0.45);
-    color = `#${c1.getHexString()}`;
+  let g;
+  if (unit.baseId && BOSS_BUILDERS[unit.baseId]) {
+    // CHEFES: modelo dedicado detalhado; adjetivos tintam por cima
+    g = BOSS_BUILDERS[unit.baseId]();
+    if (v?.tint) {
+      const t2 = new THREE.Color(v.tint);
+      g.traverse((o) => {
+        if (o.isMesh && o.material?.color) {
+          o.material = o.material.clone();
+          o.material.color.lerp(t2, 0.3);
+        }
+      });
+    }
+  } else {
+    const builder = BUILDERS[v.body] ?? BUILDERS.biped;
+    let color = v.color, accent = v.accent ?? '#333333';
+    // tinta do adjetivo mistura na cor base
+    if (v.tint) {
+      const c1 = new THREE.Color(color), c2 = new THREE.Color(v.tint);
+      c1.lerp(c2, 0.45);
+      color = `#${c1.getHexString()}`;
+    }
+    g = builder(color, accent);
   }
-  const g = builder(color, accent);
   // brilho do adjetivo (flamejante etc.)
   if (v.emissive) {
     g.traverse((o) => {
@@ -469,8 +485,36 @@ export function buildEnemyMesh(unit) {
   }
   const s = (v.scale ?? 1);
   g.scale.setScalar(s);
-  g.userData.kind = v.body;
+  if (!g.userData.kind) g.userData.kind = v.body;
   return g;
+}
+
+// animação compartilhada de partes especiais (asas/órbitas) para
+// visualizadores fora da batalha (inspetor ?model= e bestiário)
+export function animateModelParts(group, now) {
+  const t = now / 1000;
+  const u = group.userData;
+  if (u.parts) {
+    for (const w of [u.parts.wingL, u.parts.wingR]) {
+      const f = w.userData.flap ?? { base: 0, dir: 1 };
+      w.rotation.z = f.base + f.dir * Math.sin(t * 1.4) * 0.1;
+    }
+  }
+  if (u.wings) {
+    for (const w of u.wings) {
+      const f = w.userData.flap ?? { base: 0, dir: 1 };
+      w.rotation.z = f.base + f.dir * Math.sin(t * 4) * 0.18;
+    }
+  }
+  if (u.chunks) {
+    for (const ch of u.chunks) {
+      const o = ch.userData.orbit;
+      const a = t * o.speed + o.phase;
+      ch.position.set(Math.cos(a) * o.r, (o.y ?? 0.5) + Math.sin(a * 1.7) * 0.06, Math.sin(a) * o.r);
+      ch.rotation.x += 0.01;
+      ch.rotation.y += 0.013;
+    }
+  }
 }
 
 // barra de vida flutuante (sprite com canvas)

@@ -151,6 +151,7 @@ export const PT = {
   'bestiary.close': 'Fechar',
   'bestiary.tier': 'Tier {n}',
   'bestiary.hpac': '{hp} PV · CA {ac}',
+  'bestiary.clickToView': 'Clique numa criatura descoberta para ver o modelo 3D',
 
   // ajuda
   'help.title': '❓ Como Jogar',
@@ -322,6 +323,7 @@ export const EN = {
   'bestiary.close': 'Close',
   'bestiary.tier': 'Tier {n}',
   'bestiary.hpac': '{hp} HP · AC {ac}',
+  'bestiary.clickToView': 'Click a discovered creature to view its 3D model',
 
   'help.title': '❓ How to Play',
   'help.goal': '<b>Goal:</b> defeat every enemy in each battle. 5 zones × 10 battles, with a boss every 10th. After the 50th… Endless Mode.',

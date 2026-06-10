@@ -5,7 +5,7 @@ import { SceneManager, tileCenter } from './render/scene.js';
 import { TileMap } from './render/tiles.js';
 import { FX, DamageNumbers } from './render/effects.js';
 import { BattleRenderer } from './render/eventPlayer.js';
-import { buildFrosty, buildEnemyMesh } from './render/characters.js';
+import { buildFrosty, buildEnemyMesh, animateModelParts } from './render/characters.js';
 import { ENEMY_BY_ID } from './data/enemies.js';
 import { Sfx } from './audio/sfx.js';
 import { MusicEngine } from './audio/music.js';
@@ -129,23 +129,13 @@ class App {
     this.sceneMgr.scene.add(floor);
 
     const base = ENEMY_BY_ID.get(kind);
-    const model = base ? buildEnemyMesh({ visual: base.visual }) : buildFrosty();
+    const model = base ? buildEnemyMesh({ visual: base.visual, baseId: base.id }) : buildFrosty();
     this.sceneMgr.scene.add(model);
     this.sceneMgr.camTarget.set(0, 0.75, 0);
     this.sceneMgr.camZoom = 5.5;
     this.sceneMgr.resize();
     window.__model = model;
-    const flapAll = (wings, now, speed, amp) => {
-      for (const w of wings) {
-        const f = w.userData.flap ?? { base: 0, dir: 1 };
-        w.rotation.z = f.base + f.dir * Math.sin(now / speed) * amp;
-      }
-    };
-    this.sceneMgr.onFrame((now) => {
-      const parts = model.userData.parts;
-      if (parts) flapAll([parts.wingL, parts.wingR], now, 800, 0.1);
-      if (model.userData.wings) flapAll(model.userData.wings, now, 500, 0.2);
-    });
+    this.sceneMgr.onFrame((now) => animateModelParts(model, now));
   }
 
   // música respeitando a política de autoplay: só toca após o 1º gesto do usuário

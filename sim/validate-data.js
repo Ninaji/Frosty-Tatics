@@ -235,6 +235,21 @@ console.log('\nTrilha sonora:');
   ok(`Estrutura das 10 faixas válida (loop total ≈ ${Math.round(total / 60)} min de música original)`);
 }
 
+// ---------- modelos detalhados dos chefes ----------
+console.log('\nModelos 3D dos chefes:');
+{
+  const { BOSS_BUILDERS, countMeshes } = await import('../src/render/bosses.js');
+  const bossIds = ['rei_goblin', 'bruxa_verde', 'lich', 'dragao_gelo', 'vorthrax'];
+  const GENERIC_BASELINE = { rei_goblin: 10, bruxa_verde: 11, lich: 13, dragao_gelo: 18, vorthrax: 18 };
+  for (const id of bossIds) {
+    if (!BOSS_BUILDERS[id]) { err(`construtor de chefe ausente: ${id}`); continue; }
+    const meshes = countMeshes(BOSS_BUILDERS[id]());
+    const mult = (meshes / GENERIC_BASELINE[id]).toFixed(1);
+    if (meshes < 60) err(`chefe ${id}: apenas ${meshes} malhas (esperava ≥60)`);
+    else console.log(`  ✅ ${id}: ${meshes} malhas (${mult}× o arquétipo genérico)`);
+  }
+}
+
 // ---------- combinações nome PT ----------
 console.log('\nAmostras de nomes gerados:');
 import('../src/core/unit.js').then(({ composeName }) => {

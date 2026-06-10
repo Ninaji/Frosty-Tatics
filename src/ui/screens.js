@@ -2,6 +2,7 @@
 // loja, bestiário, derrota, vitória da campanha e ajuda. Totalmente i18n.
 
 import { setHTML, esc, div } from './dom.js';
+import { ModelViewer } from '../render/modelViewer.js';
 import { ENEMIES } from '../data/enemies.js';
 import { ADJECTIVES } from '../data/adjectives.js';
 import { POTIONS, UPGRADES } from '../data/items.js';
@@ -27,6 +28,8 @@ export class Screens {
   }
 
   closeModal() {
+    this._bestiaryViewer?.dispose();
+    this._bestiaryViewer = null;
     this.modal?.remove();
     this.modal = null;
   }
@@ -392,7 +395,7 @@ export class Screens {
     return this.show(el);
   }
 
-  // ---------- BESTIÁRIO ----------
+  // ---------- BESTIÁRIO (com visualizador 3D) ----------
   bestiary(bestiaryData, onClose) {
     const inner = div('');
     setHTML(inner, `
@@ -402,30 +405,55 @@ export class Screens {
         <button class="tab-adjectives">${esc(t('bestiary.adjectives'))}</button>
       </div>
       <div class="bestiary-counter"></div>
-      <div class="bestiary-grid"></div>
+      <div class="bestiary-body">
+        <div class="bestiary-grid"></div>
+        <div class="bestiary-viewer">
+          <canvas class="bv-canvas" width="280" height="320"></canvas>
+          <div class="bv-caption">${esc(t('bestiary.clickToView'))}</div>
+        </div>
+      </div>
       <div class="modal-actions"><button class="primary close">${esc(t('bestiary.close'))}</button></div>
     `);
     const grid = inner.querySelector('.bestiary-grid');
     const counter = inner.querySelector('.bestiary-counter');
     const tabE = inner.querySelector('.tab-enemies');
     const tabA = inner.querySelector('.tab-adjectives');
+    const viewerPanel = inner.querySelector('.bestiary-viewer');
+    const caption = inner.querySelector('.bv-caption');
+
+    const ensureViewer = () => {
+      if (!this._bestiaryViewer) {
+        this._bestiaryViewer = new ModelViewer(inner.querySelector('.bv-canvas'));
+      }
+      return this._bestiaryViewer;
+    };
 
     const renderEnemies = () => {
       tabE.classList.add('primary'); tabA.classList.remove('primary');
+      viewerPanel.style.display = '';
       const seen = bestiaryData.enemies;
       setHTML(counter, t('bestiary.foundCreatures', { n: seen.size, total: ENEMIES.length }));
       grid.replaceChildren();
       for (const e of [...ENEMIES].sort((a, b) => a.tier - b.tier || enemyName(a).localeCompare(enemyName(b)))) {
         const known = seen.has(e.id);
-        const card = div(`bestiary-card ${known ? '' : 'locked'}`);
+        const card = div(`bestiary-card ${known ? 'viewable' : 'locked'}`);
         setHTML(card, known
           ? `<div class="b-name">${familyIcon(e.family)} ${esc(enemyName(e))}</div><div class="b-sub">${esc(t('bestiary.tier', { n: e.tier }))} · ${esc(familyName(e.family))} · ${esc(t('bestiary.hpac', { hp: e.hp, ac: e.ac }))}</div>`
           : `<div class="b-name">❔ ???</div><div class="b-sub">${esc(t('bestiary.tier', { n: e.tier }))} · ${esc(familyName(e.family))}</div>`);
+        if (known) {
+          card.onclick = () => {
+            ensureViewer().show(e);
+            caption.textContent = `${familyIcon(e.family)} ${enemyName(e)}`;
+            grid.querySelectorAll('.bestiary-card.selected').forEach((c) => c.classList.remove('selected'));
+            card.classList.add('selected');
+          };
+        }
         grid.appendChild(card);
       }
     };
     const renderAdjectives = () => {
       tabA.classList.add('primary'); tabE.classList.remove('primary');
+      viewerPanel.style.display = 'none';
       const seen = bestiaryData.adjectives;
       setHTML(counter, t('bestiary.foundAdjectives', { n: seen.size, total: ADJECTIVES.length }));
       grid.replaceChildren();
