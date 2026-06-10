@@ -563,13 +563,13 @@ class App {
     window.addEventListener('pointerdown', unlockAudio, true);
     window.addEventListener('keydown', unlockAudio, true);
 
+    // O hover/clique mira SEMPRE o TILE (estilo FFT): corpos 3D grandes não
+    // interceptam nem desviam o alvo — a criatura vem do ocupante do tile.
     this.canvas.addEventListener('pointermove', (e) => {
       if (!this.battle || !this.renderer || this.renderer.busy) return;
-      // hover de unidade (inspeciona inimigo)
-      const unitGroups = [...this.renderer.views.values()].filter((v) => v.group.visible).map((v) => v.group);
-      const hitsU = this.sceneMgr.raycast(e.clientX, e.clientY, unitGroups);
-      const unitId = hitsU.length ? this.findUnitId(hitsU[0].object) : null;
-      const unit = unitId ? this.battle.units.find((u) => u.id === unitId && u.alive) : null;
+      const hits = this.sceneMgr.raycast(e.clientX, e.clientY, this.tilemap?.tileMeshes ?? []);
+      const tile = hits.length ? hits[0].object.userData.tile : null;
+      const unit = tile ? this.battle.unitAt(tile.x, tile.y) : null;
 
       if (unit && unit.side === 'enemy') {
         this.hud.inspectEnemy(unit);
@@ -595,15 +595,13 @@ class App {
         this.hud.hidePreview();
       }
 
-      // hover de tile (caminho)
-      const hits = this.sceneMgr.raycast(e.clientX, e.clientY, this.tilemap?.tileMeshes ?? []);
-      const tile = hits.length ? hits[0].object.userData.tile : null;
+      // realce de caminho/hover no tile
       const key = tile ? `${tile.x},${tile.y}` : null;
       if (key !== lastHover) {
         lastHover = key;
         this.tilemap?.clearKind('path');
         this.tilemap?.clearKind('hover');
-        if (tile && this.battle.isPlayerTurn() && !this.selectedAbility && !this.demoMode) {
+        if (tile && !unit && this.battle.isPlayerTurn() && !this.selectedAbility && !this.demoMode) {
           const reach = this.battle.reachableFor(this.battle.hero);
           const r = reach.get(key);
           if (r) this.tilemap.highlight(r.path, 'path');
@@ -617,12 +615,25 @@ class App {
       if (!this.battle || !this.battle.isPlayerTurn() || this.renderer.busy || this.demoMode) return;
       this.sfx.ensure();
 
-      const unitGroups = [...this.renderer.views.values()].filter((v) => v.group.visible).map((v) => v.group);
-      const hitsU = this.sceneMgr.raycast(e.clientX, e.clientY, unitGroups);
-      const unitId = hitsU.length ? this.findUnitId(hitsU[0].object) : null;
-      const unit = unitId ? this.battle.units.find((u) => u.id === unitId && u.alive) : null;
+      // só tiles no raycast: o que importa é o QUADRADO clicado
+      const hits = this.sceneMgr.raycast(e.clientX, e.clientY, this.tilemap?.tileMeshes ?? []);
+      const tile = hits.length ? hits[0].object.userData.tile : null;
+      if (!tile) return;
+      const key = `${tile.x},${tile.y}`;
+      const unit = this.battle.unitAt(tile.x, tile.y);
       const a = this.selectedAbility;
 
+      // habilidade em linha mira a DIREÇÃO do tile (com ou sem criatura nele)
+      if (a?.kind === 'line') {
+        const hero = this.battle.hero;
+        const dx = Math.sign(tile.x - hero.pos.x);
+        const dy = Math.sign(tile.y - hero.pos.y);
+        if ((dx !== 0) === (dy !== 0)) return; // precisa ser ortogonal
+        this.performAction(() => this.battle.playerAbility(a, { dir: { x: dx, y: dy } }));
+        return;
+      }
+
+      // tile com inimigo = alvo de ataque/habilidade
       if (unit && unit.side === 'enemy') {
         this.hud.hidePreview();
         if (a?.kind === 'attack' || a?.kind === 'charge') {
@@ -633,19 +644,9 @@ class App {
         return;
       }
 
-      const hits = this.sceneMgr.raycast(e.clientX, e.clientY, this.tilemap?.tileMeshes ?? []);
-      const tile = hits.length ? hits[0].object.userData.tile : null;
-      if (!tile) return;
-      const key = `${tile.x},${tile.y}`;
-
+      // tile livre = movimento (ou destino do Salto Alado)
       if (a?.kind === 'move') {
         this.performAction(() => this.battle.playerAbility(a, { key }));
-      } else if (a?.kind === 'line') {
-        const hero = this.battle.hero;
-        const dx = Math.sign(tile.x - hero.pos.x);
-        const dy = Math.sign(tile.y - hero.pos.y);
-        if ((dx !== 0) === (dy !== 0)) return; // precisa ser ortogonal
-        this.performAction(() => this.battle.playerAbility(a, { dir: { x: dx, y: dy } }));
       } else if (!a) {
         this.performAction(() => {
           const ok = this.battle.playerMove(key);
@@ -679,14 +680,6 @@ class App {
     }, { passive: true });
   }
 
-  findUnitId(obj) {
-    let o = obj;
-    while (o) {
-      if (o.userData?.unitId) return o.userData.unitId;
-      o = o.parent;
-    }
-    return null;
-  }
 }
 
 new App();

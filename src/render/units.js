@@ -23,14 +23,8 @@ export class UnitView {
     const height = this.bodyHeight();
     hpbar.sprite.position.y = height + 0.32;
     this.group.add(hpbar.sprite);
-
-    // hitbox invisível generosa para cliques confiáveis
-    const hit = new THREE.Mesh(
-      new THREE.BoxGeometry(0.85, Math.max(1.1, height), 0.85),
-      new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false })
-    );
-    hit.position.y = Math.max(1.1, height) / 2;
-    this.group.add(hit);
+    // nota: o picking de clique/hover é feito SOMENTE pelos tiles (main.js);
+    // os corpos 3D não participam de raycast — modelos grandes não roubam cliques.
 
     // emissor de partículas do adjetivo
     if (unit.visual?.particle) {
